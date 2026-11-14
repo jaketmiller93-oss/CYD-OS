@@ -2,7 +2,10 @@
 
 The user confirmed their C5 is NM-CYD-C5. The exact physical revision/panel
 variant has not been inspected. The implemented profile follows the official
-**V1.0 schematic and ST7789 configuration**. No physical device testing is claimed.
+**V1.0 schematic and ST7789 configuration**. The user has confirmed the earlier
+display/touch/SD/Wi-Fi/app workflow and connection manager on their C5. The build
+environment has no hardware access; the latest 0.3.x additions still need physical
+acceptance. Chip silicon revision v1.0 does not establish the PCB revision.
 
 ## Manufacturer sources
 
@@ -61,8 +64,10 @@ reversal, takes median-of-five readings, and checks touch pressure. Offsets and
 spans are configurable under **NM-CYD-C5 touch calibration** in menuconfig.
 
 Those values are a manufacturer example, not a measurement of your panel. Confirm
-all four corners and the Home control on your hardware. There is no interactive
-calibration wizard yet. Bad calibration is a remaining physical acceptance risk.
+all four corners and the Home control on your hardware. CYD OS 0.3.x adds an interactive
+five-target calibration wizard with timed confirmation and hold-to-cancel under
+Settings → Display & touch. See SETTINGS-AND-APPS.md. Physical acceptance of that
+wizard remains pending; the earlier corrected raw-axis mapping was user-confirmed.
 
 ## Build separately from the CrowPanel
 
