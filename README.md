@@ -3,6 +3,8 @@
 **Continuing in a new chat?** Read [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) and
 the [complete project reference](docs/PROJECT-REFERENCE.md) first.
 
+**Downloads:** [Firmware, setup ZIPs and examples](https://github.com/jaketmiller93-oss/CYD-OS/tree/main/releases/v0.3.2).
+
 Latest patch: **0.3.2**, with remembered Safari dashboard access and automatic
 sign-in. See [OTA.md](docs/OTA.md#remember-dashboard-access-032).
 
