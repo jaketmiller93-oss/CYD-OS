@@ -14,6 +14,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 import zipfile
+import struct
+import zlib
 
 MAX_PACKAGE = 512 * 1024
 MAX_FILE = 64 * 1024
@@ -36,10 +38,25 @@ def unique_object(pairs):
     return obj
 
 def validate_manifest(raw):
+    if isinstance(raw,str):raw=raw.encode('utf-8')
     if len(raw) > 4096:
         raise CydError('Manifest limit is 4096 bytes')
+    depth=0;quoted=False;escaped=False
+    for byte in raw:
+        if quoted:
+            if escaped:escaped=False
+            elif byte==92:escaped=True
+            elif byte==34:quoted=False
+        elif byte==34:quoted=True
+        elif byte in (91,123):
+            depth+=1
+            if depth>8:raise CydError('Manifest nesting limit is eight levels')
+        elif byte in (93,125):
+            depth-=1
+            if depth<0:raise CydError('Malformed manifest nesting')
+    if quoted or depth:raise CydError('Malformed manifest nesting')
     try:
-        m = json.loads(raw, object_pairs_hook=unique_object)
+        m = json.loads(raw, object_pairs_hook=unique_object, parse_constant=lambda value: (_ for _ in ()).throw(CydError('Non-finite JSON number')))
     except (ValueError, UnicodeDecodeError) as exc:
         raise CydError(f'Invalid manifest JSON: {exc}') from exc
     def has_nul(v):
@@ -67,8 +84,8 @@ def validate_manifest(raw):
     if not isinstance(targets, list) or not targets or any(t not in ('esp32s3', 'esp32c5') for t in targets):
         raise CydError('Invalid target list')
     permissions = m.get('permissions')
-    if not isinstance(permissions, list) or any(p != 'storage' for p in permissions):
-        raise CydError('The MVP supports only the storage permission')
+    if not isinstance(permissions, list) or any(not isinstance(p,str) or p not in {'storage','network','mqtt','credentials'} for p in permissions):
+        raise CydError('Supported permissions: storage, network, mqtt, credentials')
     if 'icon' in m and not safe_path(m['icon']):
         raise CydError('Invalid icon path')
     return m
@@ -113,6 +130,34 @@ def package_project(source: Path):
     if len(result) > MAX_PACKAGE:
         raise CydError('Package exceeds 512 KiB')
     return m, result
+
+def inspect_package(raw):
+    """Mirror the firmware's strict stored-ZIP layout, flags, paths and CRC policy."""
+    if not 22 <= len(raw) <= MAX_PACKAGE:raise CydError('Package size limit')
+    def u16(p):return struct.unpack_from('<H',raw,p)[0]
+    def u32(p):return struct.unpack_from('<I',raw,p)[0]
+    end=len(raw)-22
+    if u32(end)!=0x06054b50 or u16(end+4) or u16(end+6) or u16(end+20):raise CydError('Invalid ZIP end record')
+    count=u16(end+10);pos=u32(end+16);cd=pos;size=u32(end+12);local=0;files={}
+    if not 1<=count<=MAX_FILES or u16(end+8)!=count or pos+size!=end:raise CydError('Invalid ZIP directory')
+    try:
+        for _ in range(count):
+            if pos+46>end or u32(pos)!=0x02014b50:raise CydError('Invalid central record')
+            ns,extra,comment=u16(pos+28),u16(pos+30),u16(pos+32);n=u32(pos+24);mode=u32(pos+38)>>16
+            if u16(pos+8) or u16(pos+10) or u16(pos+34) or u32(pos+20)!=n or n>MAX_FILE or not 0<ns<96 or pos+46+ns+extra+comment>end or u32(pos+42)!=local or (mode and stat.S_IFMT(mode)!=stat.S_IFREG) or u32(pos+38)&0x10:raise CydError('Unsupported ZIP entry')
+            name=raw[pos+46:pos+46+ns].decode('ascii')
+            if not safe_path(name) or name=='package.cydapp' or any(name==old or name.startswith(old+'/') or old.startswith(name+'/') for old in files):raise CydError('Invalid, duplicate or reserved path')
+            if local+30>cd or u32(local)!=0x04034b50 or u16(local+6) or u16(local+8) or u32(local+14)!=u32(pos+16) or u32(local+18)!=n or u32(local+22)!=n or u16(local+26)!=ns or raw[local+30:local+30+ns]!=name.encode():raise CydError('Local/central header mismatch')
+            offset=local+30+ns+u16(local+28)
+            if offset+n>cd:raise CydError('Truncated entry')
+            data=raw[offset:offset+n]
+            if zlib.crc32(data)!=u32(pos+16):raise CydError('CRC mismatch')
+            files[name]=data;local=offset+n;pos+=46+ns+extra+comment
+    except (struct.error,UnicodeError) as exc:raise CydError('Malformed ZIP') from exc
+    if pos!=end or local!=cd:raise CydError('ZIP layout mismatch')
+    m=validate_manifest(files.get('manifest.json',b''))
+    if not files.get(m['entry_point']):raise CydError('Missing entry point')
+    return m
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -183,6 +228,7 @@ def parser():
     pack = sub.add_parser('pack', parents=[common])
     pack.add_argument('source', type=Path)
     pack.add_argument('-o', '--output', required=True, type=Path)
+    inspect = sub.add_parser('inspect',parents=[common]);inspect.add_argument('source',type=Path)
     deploy = sub.add_parser('deploy', parents=[common])
     deploy.add_argument('source', type=Path)
     deploy.add_argument('--run', action='store_true')
@@ -195,6 +241,8 @@ def parser():
     return p
 
 def execute(args):
+    if args.command == 'inspect':
+        return package_project(args.source)[0] if args.source.is_dir() else inspect_package(args.source.read_bytes())
     if args.command == 'pack':
         m, data = package_project(args.source)
         args.output.write_bytes(data)

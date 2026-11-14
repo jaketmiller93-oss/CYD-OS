@@ -1,17 +1,17 @@
 #include "cyd.h"
-#include "cyd_network.h"
 #include "cyd_access.h"
-#include "cyd_ota.h"
 #include "cyd_device.h"
+#include "cyd_network.h"
+#include "cyd_ota.h"
 #include "cyd_projects.h"
-#include <math.h>
-#include "sdkconfig.h"
-#include "esp_http_server.h"
 #include "esp_heap_caps.h"
+#include "esp_http_server.h"
 #include "esp_psram.h"
+#include "sdkconfig.h"
+#include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 extern const char dashboard_start[] asm("_binary_dashboard_html_start");
 static esp_err_t json(httpd_req_t *r, cJSON *o) {
     if (!o)
@@ -62,10 +62,10 @@ static bool revision(httpd_req_t *r, char *out) {
 static esp_err_t index_page(httpd_req_t *r) {
     httpd_resp_set_type(r, "text/html");
     httpd_resp_set_hdr(r, "X-Content-Type-Options", "nosniff");
-    httpd_resp_set_hdr(
-        r, "Content-Security-Policy",
-        "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src "
-        "'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+    httpd_resp_set_hdr(r, "Content-Security-Policy",
+                       "default-src 'none'; script-src 'unsafe-inline'; style-src "
+                       "'unsafe-inline'; connect-src "
+                       "'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
     return httpd_resp_sendstr(r, dashboard_start);
 }
 static esp_err_t status(httpd_req_t *r) {
@@ -117,10 +117,10 @@ static esp_err_t logs_handler(httpd_req_t *r) {
         return ESP_OK;
     return json(r, cyd_logs());
 }
-static esp_err_t upload(httpd_req_t *r) {
+static esp_err_t package_request(httpd_req_t *r, bool inspect) {
     if (!auth(r))
         return ESP_OK;
-    if (!cyd_storage_ready())
+    if (!inspect && !cyd_storage_ready())
         return failure(r, ESP_ERR_INVALID_STATE, "SD card unavailable");
     if (r->content_len < 22 || r->content_len > CYD_MAX_PACKAGE)
         return failure(r, ESP_ERR_INVALID_SIZE, "Package limit 512 KiB");
@@ -137,6 +137,13 @@ static esp_err_t upload(httpd_req_t *r) {
         offset += n;
     }
     char rev[17], error[128];
+    if (inspect) {
+        cJSON *meta = cyd_package_inspect(b, offset, error, sizeof(error));
+        free(b);
+        if (!meta)
+            return failure(r, ESP_ERR_INVALID_ARG, error);
+        return json(r, meta);
+    }
     esp_err_t e = cyd_install(b, offset, rev, sizeof(rev), error, sizeof(error));
     free(b);
     if (e)
@@ -147,6 +154,8 @@ static esp_err_t upload(httpd_req_t *r) {
     cJSON_AddStringToObject(o, "status", "installed");
     return json(r, o);
 }
+static esp_err_t upload(httpd_req_t *r) { return package_request(r, false); }
+static esp_err_t inspect_package(httpd_req_t *r) { return package_request(r, true); }
 static esp_err_t run(httpd_req_t *r) {
     if (!auth(r))
         return ESP_OK;
@@ -432,6 +441,7 @@ esp_err_t cyd_web_start(void) {
         {.uri = "/api/versions", .method = HTTP_GET, .handler = versions},
         {.uri = "/api/logs", .method = HTTP_GET, .handler = logs_handler},
         {.uri = "/api/packages", .method = HTTP_POST, .handler = upload},
+        {.uri = "/api/packages/inspect", .method = HTTP_POST, .handler = inspect_package},
         {.uri = "/api/run", .method = HTTP_POST, .handler = run},
         {.uri = "/api/stop", .method = HTTP_POST, .handler = stop},
         {.uri = "/api/versions", .method = HTTP_DELETE, .handler = remove_version},

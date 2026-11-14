@@ -3,10 +3,12 @@
 **Continuing in a new chat?** Read [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) and
 the [complete project reference](docs/PROJECT-REFERENCE.md) first.
 
-**Downloads:** [Firmware, setup ZIPs and examples](https://github.com/jaketmiller93-oss/CYD-OS/tree/main/releases/v0.3.2).
+**Downloads:** [Firmware, setup ZIPs and examples](releases/README.md).
 
-Latest patch: **0.3.2**, with remembered Safari dashboard access and automatic
-sign-in. See [OTA.md](docs/OTA.md#remember-dashboard-access-032).
+Latest platform: **0.4.0**, with app-owned HTTP/TLS/MQTT, timers, expanded UI,
+JSON/resources, scoped NVS credentials and package permission inspection.
+Read [the Lua API](docs/LUA-API-0.4.md), [security/quotas](docs/SECURITY-0.4.md)
+and [upgrade/rollback instructions](docs/UPGRADE-0.4.md).
 
 An ESP-IDF MVP for **Elecrow CrowPanel Advance 4.3-inch DIS01943A V1.1–V1.3**
 and **RockBase NM-CYD-C5 V1.0 with ST7789**.
@@ -19,7 +21,7 @@ board initialization is disabled by default until you confirm it in menuconfig.
 CrowPanel V1.0 and C5 panels other than ST7789 are not supported by these profiles.
 The user has confirmed C5 boot, corrected touch mapping, Wi-Fi, SD uploads and
 wireless Lua app updates. The user has also verified the connection manager and CYDAP from an iPad.
-The new 0.3.0 OTA/settings/theme changes are software-tested; hardware acceptance is pending.
+The 0.3.x OS features and 0.4.0 platform additions have software validation; hardware acceptance is pending.
 
 ## Included
 
@@ -36,7 +38,8 @@ The new 0.3.0 OTA/settings/theme changes are software-tested; hardware acceptanc
 - FAT SD storage, station/AP/AP+station operation, separate IP display, mDNS.
 - Authenticated browser dashboard and deployment API: upload, list, run, stop,
   delete and download revisions; polling logs and memory/storage diagnostics.
-- Lua 5.4.8: labels, buttons, click callbacks, private persistent storage, logging,
+- Lua 5.4.8: labels/buttons, bars/containers/views/inputs/images, serial callbacks,
+  managed HTTP(S)/MQTT, timers, bounded JSON, resources, scoped credentials, storage, logging,
   bounded memory, instruction hooks, and one foreground application.
 - `cydctl`: reproducible stored-ZIP packages, deployment, confirmed startup,
   revision selection, logs, download, and machine-readable output.
@@ -157,8 +160,8 @@ See [API.md](docs/API.md), [HARDWARE.md](docs/HARDWARE.md),
 - Only stored ZIP archives are accepted; use `cydctl pack` or the Python ZIP_STORED
   format. Limits: 512 KiB/package, 48 files, 64 KiB/file, 4 KiB manifest,
   lowercase ASCII relative paths. No ZIP64, encryption, links or compressed ZIPs.
-- Storage permission is supported. UART/I²C/GPIO/network APIs, resource leases,
-  images, lists, sliders, inputs and charts remain future phases; unsupported
+- Storage/network/MQTT/credential permissions are supported. UART/I²C/GPIO APIs and resource leases,
+  arbitrary image decoders, lists, sliders and charts remain future phases; unsupported
   manifest permissions are rejected instead of silently granted.
 - No arbitrary file browser, nested folders, pinned
   home apps, saved layout, automatic last-known-working selection, retention

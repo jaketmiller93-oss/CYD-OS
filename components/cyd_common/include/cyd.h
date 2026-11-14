@@ -7,19 +7,21 @@
 #include "freertos/semphr.h"
 #include "cJSON.h"
 #include "lvgl.h"
+#ifndef CYD_ROOT
 #define CYD_ROOT "/sdcard/cydos"
+#endif
 #define CYD_MAX_PACKAGE (512 * 1024)
 #define CYD_MAX_FILES 48
 #define CYD_MAX_PATH 96
 #define CYD_MAX_SCRIPT (64 * 1024)
-#define CYD_VERSION "0.3.2"
+#define CYD_VERSION "0.4.0"
 const char *cyd_system_version(void);
 bool cyd_maintenance_active(void);
 bool cyd_maintenance_begin(void);
 void cyd_maintenance_end(void);
 typedef struct {
     char id[65], name[65], version[33], entry[CYD_MAX_PATH];
-    bool storage;
+    bool storage, network, mqtt, credentials;
 } cyd_manifest_t;
 typedef struct {
     char name[CYD_MAX_PATH];
@@ -57,12 +59,13 @@ esp_err_t cyd_install(const uint8_t *, size_t, char *, size_t, char *, size_t);
 esp_err_t cyd_run_revision(const char *revision);
 esp_err_t cyd_delete_revision(const char *revision);
 cJSON *cyd_versions(void);
+esp_err_t cyd_package_validate(const uint8_t *,size_t,cyd_zip_t *,cyd_manifest_t *,char *,size_t);
+cJSON *cyd_package_inspect(const uint8_t *,size_t,char *,size_t);
 esp_err_t cyd_manifest_parse(const void *, size_t, cyd_manifest_t *);
 esp_err_t cyd_runtime_init(void);
 esp_err_t cyd_runtime_start(const char *, const char *, const cyd_manifest_t *);
 esp_err_t cyd_runtime_stop(void);
 void cyd_runtime_request_stop(void);
-void cyd_runtime_event(int ref);
 cJSON *cyd_runtime_status(void);
 void cyd_log(const char *context, const char *message);
 cJSON *cyd_logs(void);

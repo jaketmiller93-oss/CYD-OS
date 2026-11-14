@@ -1,13 +1,13 @@
 #include "cyd.h"
 #include "cyd_projects.h"
+#include "esp_random.h"
 #include "sdkconfig.h"
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <dirent.h>
 #include <sys/stat.h>
 #include <time.h>
-#include "esp_random.h"
 static SemaphoreHandle_t mutex;
 static const char *str(cJSON *o, const char *k) {
     cJSON *v = cJSON_GetObjectItemCaseSensitive(o, k);
@@ -32,37 +32,16 @@ esp_err_t cyd_install(const uint8_t *bytes, size_t n, char *revision, size_t cap
     xSemaphoreTake(mutex, portMAX_DELAY);
     esp_err_t e = ESP_FAIL;
     cyd_zip_t *zip = calloc(1, sizeof(*zip));
-    uint8_t *manifest = NULL;
     char final[180] = {0};
     const char *why = "Invalid stored-ZIP package";
     if (!zip) {
         e = ESP_ERR_NO_MEM;
         goto done;
     }
-    if (cyd_zip_parse(bytes, n, zip))
-        goto done;
-    cyd_zip_file_t *mf = NULL, *entry = NULL;
-    for (unsigned i = 0; i < zip->count; i++)
-        if (!strcmp(zip->files[i].name, "manifest.json"))
-            mf = &zip->files[i];
-    if (!mf || mf->size > 4096)
-        goto done;
-    manifest = calloc(1, mf->size + 1);
-    if (!manifest)
-        goto done;
-    memcpy(manifest, mf->data, mf->size);
     cyd_manifest_t m;
-    e = cyd_manifest_parse(manifest, mf->size, &m);
+    e = cyd_package_validate(bytes, n, zip, &m, error, ec);
     if (e) {
-        why = "Invalid manifest, target, API or unsupported permission";
-        goto done;
-    }
-    for (unsigned i = 0; i < zip->count; i++)
-        if (!strcmp(zip->files[i].name, m.entry))
-            entry = &zip->files[i];
-    if (!entry || !entry->size) {
-        e = ESP_ERR_INVALID_ARG;
-        why = "Missing entry point";
+        why = error;
         goto done;
     }
     if (cyd_storage_free() < 2 * n + 65536) {
@@ -92,7 +71,8 @@ esp_err_t cyd_install(const uint8_t *bytes, size_t n, char *revision, size_t cap
             (e = cyd_write_file(path, zip->files[i].data, zip->files[i].size)))
             goto io;
     }
-    /* Preserve the exact upload for downloads; reserved filename can't shadow app data. */
+    /* Preserve the exact upload for downloads; reserved filename can't shadow app
+     * data. */
     {
         char path[200];
         snprintf(path, sizeof(path), "%s/package.cydapp", stage);
@@ -118,9 +98,9 @@ io:
 done:
     if (e) {
         cyd_remove_tree(CYD_ROOT "/staging");
-        snprintf(error, ec, "%s", why);
+        if (why != error)
+            snprintf(error, ec, "%s", why);
     }
-    free(manifest);
     free(zip);
     xSemaphoreGive(mutex);
     return e;

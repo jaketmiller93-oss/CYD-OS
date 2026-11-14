@@ -1,0 +1,1 @@
+{"package_id":"org.cyd.platformdemo","name":"Platform API Demo","version":"0.4.0","api_version":1,"entry_point":"main.lua","target":["esp32c5","esp32s3"],"permissions":["network","mqtt","credentials"]}

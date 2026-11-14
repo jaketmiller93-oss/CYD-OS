@@ -34,7 +34,7 @@ def validate_image(data,board,version):
     return {'board':board,'version':version,'bytes':len(data),'file_sha256':hashlib.sha256(data).hexdigest(),'esp_image_sha256':data[hash_at:].hex(),'partition_layout_sha256':layout}
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--board',choices=['nm_cyd_c5','crowpanel_s3'],default='nm_cyd_c5');p.add_argument('--version',default='0.3.2');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--board',choices=['nm_cyd_c5','crowpanel_s3'],default='nm_cyd_c5');p.add_argument('--version',default='0.4.0');p.add_argument('--output',type=Path,default=ROOT/'dist');a=p.parse_args()
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z0-9.-]{0,16})?',a.version) or len(a.version.encode())>=32:p.error('Use a short semantic version')
     if not os.getenv('IDF_PATH'):p.error('Activate ESP-IDF 5.5.4 first')
     build=ROOT/f'build-ota-{a.board}-{a.version}';build.mkdir(exist_ok=True)

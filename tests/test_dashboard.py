@@ -30,6 +30,8 @@ class Dashboard(unittest.TestCase):
      if body and body['action']=='rotation':device.update(display_mode=1,seconds_left=15)
      if body and body['action']=='confirm':device.update(display_mode=0,seconds_left=0)
      result=device
+    if self.path=='/api/packages/inspect':result={'name':'Generic API fixture','package_id':'org.cyd.fixture','permissions':['network','credentials']}
+    if self.path=='/api/packages':result={'revision':'c'*16,'status':'installed'}
     if self.path=='/api/os/update':os_state.update(state='ready',candidate_version='0.3.1',message='Firmware verified')
     if self.path=='/api/os/reboot':os_state.update(state='idle',version='0.3.1',candidate_version='',message='Startup confirmed')
     if self.path.startswith('/api/os'):result=os_state
@@ -40,7 +42,8 @@ class Dashboard(unittest.TestCase):
     import shutil
     binary=shutil.which('chromium')
     if not binary:self.skipTest('System Chromium is optional')
-    browser=p.chromium.launch(executable_path=binary,headless=True,args=['--no-sandbox']);page=browser.new_page(viewport={'width':820,'height':1180},is_mobile=True,has_touch=True);errors=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:d.accept());page.goto(f'http://127.0.0.1:{server.server_port}');page.locator('#token').fill('test-access-token');page.locator('#connect').click();page.locator('#catalog summary').wait_for();self.assertEqual(page.locator('#catalog summary').count(),1)
+    browser=p.chromium.launch(executable_path=binary,headless=True,args=['--no-sandbox']);page=browser.new_page(viewport={'width':820,'height':1180},is_mobile=True,has_touch=True);errors=[];dialogs=[];page.on('pageerror',lambda e:errors.append(str(e)));page.on('dialog',lambda d:(dialogs.append(d.message),d.accept()));page.goto(f'http://127.0.0.1:{server.server_port}');page.locator('#token').fill('test-access-token');page.locator('#connect').click();page.locator('#catalog summary').wait_for();self.assertEqual(page.locator('#catalog summary').count(),1)
+    page.locator('#package').set_input_files({'name':'fixture.cydapp','mimeType':'application/zip','buffer':b'PK'+bytes(100)});page.locator('#install').click();page.wait_for_function("document.querySelector('#message').textContent.includes('App installed')");self.assertTrue(any('network, credentials' in text for text in dialogs));paths=[c[1] for c in calls];self.assertLess(paths.index('/api/packages/inspect'),paths.index('/api/packages'))
     page.locator('#catalog summary').click();self.assertEqual(page.get_by_role('button',name='Run',exact=True).count(),2);page.locator('#catalog select').select_option('1234abcd');page.get_by_role('button',name='Move',exact=True).click();page.get_by_role('button',name='▣ Tools').click();page.locator('#catalog summary').wait_for();self.assertEqual(page.locator('#browse-title').inner_text(),'Tools')
     page.locator('#tab-settings').click();page.locator('#sync-clock').click();page.wait_for_timeout(250);self.assertTrue(any(c[1]=='/api/device' and c[2] and c[2].get('action')=='clock' for c in calls))
     page.locator('#rotation').select_option('1');page.locator('#set-rotation').click();page.locator('#confirm-display').wait_for(state='visible');page.locator('#confirm-display').click()

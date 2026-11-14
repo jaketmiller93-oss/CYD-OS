@@ -1,4 +1,7 @@
-# Validation record
+# Historical validation record
+
+Current 0.4.0 results: [VALIDATION-0.4.md](VALIDATION-0.4.md).
+The records below describe earlier versions, not the current checkout.
 
 Recorded 2026-11-13 19:09 EST.
 
