@@ -51,8 +51,11 @@ S3 should own app Lua/UI/SD, C5 should own connectivity and approved background
 services. Read docs/PAIRED-ARCHITECTURE.md. The new component currently implements
 only a diagnostic UART session/echo link; no network proxy, forwarded upload,
 background job API, credential sharing or paired OTA is claimed. UART defaults
-disabled; no physical pin assignments or hardware acceptance exist. The new S3
-is known only as Elecrow; exact model/revision/connector remains unconfirmed.
+disabled; no physical pin assignments or hardware acceptance exist. The user supplied the Elecrow CrowPanel Advance 4.3-inch DIS01943A wiki on
+2026-11-14, confirming the model family. PCB revision is still unconfirmed. Read
+docs/HARDWARE.md: UART1 RX19/TX20 is selector-routed and conflicts with the current
+SD mode on the pinned V1.3 schematic; UART0 RX44/TX43 shares CH340. No cable/pin
+assignment or native-USB console change is approved yet.
 
 Open user incident: Pocket Pal upload on running C5 OS 0.4.0 produced a quick screen
 flash/return to Home while Safari waited for verification; app not listed and RAM

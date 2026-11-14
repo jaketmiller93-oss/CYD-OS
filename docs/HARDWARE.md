@@ -1,8 +1,9 @@
 # Hardware verification record
 
-Research date: 2026-11-13. **No physical board was attached.** Product/revision
-confirmation for the user’s device is pending. This is a manufacturer-source
-profile for DIS01943A V1.1–V1.3, not a claim that the user owns that revision.
+Research date: 2026-11-13. **No physical board was attached.** The user confirmed the product family on 2026-11-14 by supplying the
+[DIS01943A product wiki](https://www.elecrow.com/pub/wiki/CrowPanel_Advance_4.3-HMI_ESP32_AI_Display.html).
+The physical PCB revision is still unknown. This is a manufacturer-source profile
+for V1.1–V1.3, not confirmation that the user owns one of those revisions.
 
 ## Official sources
 
@@ -85,3 +86,39 @@ No battery percentage is fabricated.
 
 NM-CYD-C5 now has a separate SPI HAL based on its manufacturer V1.0 schematic.
 See [HARDWARE-C5.md](HARDWARE-C5.md); do not reuse this RGB/S3 configuration.
+
+## Paired-device UART follow-up, 2026-11-14
+
+The user's supplied wiki identifies **DIS01943A**, resolving the model-family
+question. It covers V1.0, V1.1 and V1.2/V1.3; a URL does not identify the physical
+PCB revision. The existing display/touch/backlight profile remains V1.1–V1.3 only.
+
+The manufacturer lists the following signal assignments (not a complete cable):
+
+| Board port | MCU RX | MCU TX | Constraint |
+| --- | --- | --- | --- |
+| UART0-OUT / UART0-IN | GPIO44 | GPIO43 | Shares the CH340 USB serial path; OUT and IN also differ in power interface |
+| UART1-OUT | GPIO19 | GPIO20 | Multiplexed with microphone/wireless functions; MCU pins also have native USB functions |
+
+Source: [the supplied Elecrow wiki](https://www.elecrow.com/pub/wiki/CrowPanel_Advance_4.3-HMI_ESP32_AI_Display.html).
+Do not infer connector orientation or power-pin wiring from this signal table.
+
+The pinned **V1.3 Eagle schematic** adds a restriction not obvious from the port
+names: J12 RX/TX connect to U9 A1X/B1Y, while MCU IO19/IO20 connect to U9 AX/BY.
+The MIC routes connect to A0X/B0Y and A3X/B3Y. U9 and the other peripheral selector
+U11 share SEL0/SEL1. Thus the documented S1=1/S0=1 MIC+TF setting does not select
+J12's UART route. Selecting the wireless/UART route also changes the SPI selector;
+do not assume UART1 and the current onboard SD route work simultaneously.
+
+J2 UART0-OUT is on ESP_RXD0/ESP_TXD0. Those same nets connect through Q2/Q1 to
+RXD0_H/TXD0_H and through R10/R8 to CH340 TXD/RXD. A second transmitter on that
+shared path needs an electrical coexistence/isolation plan, particularly with USB
+connected. UART0-IN is on the high-side nets; it is not interchangeable with the
+3.3 V OUT interface based solely on a four-pin connector. These are netlist
+observations, not a measured voltage or an approved wiring procedure.
+
+Primary schematic: [V1.3 Eagle source at the pinned manufacturer revision](https://github.com/Elecrow-RD/CrowPanel-Advance-4.3-HMI-ESP32-S3-AI-Powered-IPS-Touch-Screen-800x480/blob/6c8611ed51e44b0e2a9e92c23e89f3993df2742f/Eagle_SCH%26PCB/1.3/ESP32%20Display%204.3%20inch%20V1.3.sch).
+The current S3 build uses native USB Serial/JTAG console configuration, which also
+needs review before GPIO19/20 can be allocated to a link. No guard, console config,
+DIP setting or GPIO assignment has been changed based on the product URL alone.
+See PAIRED-ARCHITECTURE.md for the remaining revision/cable qualification.

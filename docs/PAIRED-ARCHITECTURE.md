@@ -36,11 +36,15 @@ A full 800x480 RGB565 frame is 768 kB. UART is suitable for management/small net
 payloads, not high-rate video or large continuous streams; SPI remains a later
 transport option if actual traffic justifies it.
 
-Exact exposed connector pins are not established. The S3 is identified only as
-Elecrow; DIS01943A V1.1-V1.3 is the existing assumed profile, not confirmation of
-the newly bought board. No pin assignments are inferred from chip names. Display,
-SD, touch, USB, flash/PSRAM and bootstrapping pins must be excluded. No cable or
-power wiring is prescribed until the actual model/revision/connector is verified.
+Hardware update 2026-11-14: the user supplied Elecrow's DIS01943A wiki, confirming
+the CrowPanel Advance 4.3-inch model family. PCB revision remains unknown. The
+manufacturer lists UART0 RX44/TX43 and UART1 RX19/TX20, but those are not independent
+free ports: V1.3 UART1 is behind the microphone/wireless selector, and its route
+is not selected by the current SD mode. UART0 shares the USB serial bridge. The
+existing native-USB console configuration also conflicts with using GPIO19/20.
+See [the verified UART follow-up](HARDWARE.md#paired-device-uart-follow-up-2026-11-14).
+A schematic-verified link/power/recovery arrangement for the actual revision is
+still required. No GPIO guard or hardware setting is relaxed based on the URL.
 
 ## First implemented increment
 

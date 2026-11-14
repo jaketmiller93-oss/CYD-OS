@@ -73,7 +73,10 @@ confirming an otherwise healthy OTA boot.
 
 ## Remaining limits and acceptance
 
-Exact new Elecrow model/revision and connector pinout remain unknown. Physical
+At these test runs the new Elecrow model/revision had not been confirmed. The
+user subsequently supplied the DIS01943A wiki, confirming the model family; see
+the dated UART follow-up in HARDWARE.md for selector/USB conflicts. Physical
+revision and a qualified cable remain unknown. Physical
 UART, grounding, baud, noise, reconnect/reset, hotplug/power and display/SD
 concurrency are untested. Both nodes retain standalone application/network behavior;
 only their diagnostic role labels and link can be selected in this increment.
