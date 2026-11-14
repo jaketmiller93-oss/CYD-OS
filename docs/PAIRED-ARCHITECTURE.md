@@ -37,7 +37,7 @@ payloads, not high-rate video or large continuous streams; SPI remains a later
 transport option if actual traffic justifies it.
 
 Hardware update 2026-11-14: the user supplied Elecrow's DIS01943A wiki, confirming
-the CrowPanel Advance 4.3-inch model family. PCB revision remains unknown. The
+the CrowPanel Advance 4.3-inch model family, then separately confirmed PCB V1.3. The
 manufacturer lists UART0 RX44/TX43 and UART1 RX19/TX20, but those are not independent
 free ports: V1.3 UART1 is behind the microphone/wireless selector, and its route
 is not selected by the current SD mode. UART0 shares the USB serial bridge. The

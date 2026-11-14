@@ -79,7 +79,8 @@ and `authenticated` are explicitly false. No counterpart is required to boot.
 
 Physical baud starts at 115200 (8N1); higher configured rates up to 921600 need
 real acceptance. No user-facing wiring or flash instructions are supplied until
-the new Elecrow model/revision and accessible pins are established.
+the actual cable, accessible pins, selector routing and USB coexistence are
+qualified. The user has confirmed the Elecrow DIS01943A V1.3.
 
 ## Test boundaries
 

@@ -10,7 +10,7 @@ memory. Do not assume the user has installed the latest prepared firmware.
 - Latest prepared platform: **0.4.0**. Primary hardware: user's working RockBase
   NM-CYD-C5, ESP32-C5HR8, 16 MiB flash/8 MiB PSRAM, ST7789 320×240/XPT2046.
 - Secondary profile: CrowPanel Advance DIS01943A V1.1–V1.3, ESP32-S3, 800×480/GT911.
-  Builds pass; CrowPanel physical revision/operation remain unverified.
+  The user confirmed PCB V1.3. Builds pass; physical operation remains unverified.
 - Goal: iPad/ChatGPT app development, Safari `.cydapp` uploads over Wi-Fi/CYD AP,
   organized app versions and wireless native OS updates; USB for bootstrap/recovery.
 - User confirmed C5 display/touch, Wi-Fi, SD app deployment, Connections and CYDAP.
@@ -52,7 +52,7 @@ services. Read docs/PAIRED-ARCHITECTURE.md. The new component currently implemen
 only a diagnostic UART session/echo link; no network proxy, forwarded upload,
 background job API, credential sharing or paired OTA is claimed. UART defaults
 disabled; no physical pin assignments or hardware acceptance exist. The user supplied the Elecrow CrowPanel Advance 4.3-inch DIS01943A wiki on
-2026-11-14, confirming the model family. PCB revision is still unconfirmed. Read
+2026-11-14, confirming the model family, then explicitly confirmed PCB V1.3. Read
 docs/HARDWARE.md: UART1 RX19/TX20 is selector-routed and conflicts with the current
 SD mode on the pinned V1.3 schematic; UART0 RX44/TX43 shares CH340. No cable/pin
 assignment or native-USB console change is approved yet.

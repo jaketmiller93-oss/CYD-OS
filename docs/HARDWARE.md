@@ -2,8 +2,9 @@
 
 Research date: 2026-11-13. **No physical board was attached.** The user confirmed the product family on 2026-11-14 by supplying the
 [DIS01943A product wiki](https://www.elecrow.com/pub/wiki/CrowPanel_Advance_4.3-HMI_ESP32_AI_Display.html).
-The physical PCB revision is still unknown. This is a manufacturer-source profile
-for V1.1–V1.3, not confirmation that the user owns one of those revisions.
+The user subsequently confirmed PCB **V1.3**. This establishes a match to the
+manufacturer-source profile; physical firmware operation and cable qualification
+remain untested.
 
 ## Official sources
 
@@ -90,8 +91,8 @@ See [HARDWARE-C5.md](HARDWARE-C5.md); do not reuse this RGB/S3 configuration.
 ## Paired-device UART follow-up, 2026-11-14
 
 The user's supplied wiki identifies **DIS01943A**, resolving the model-family
-question. It covers V1.0, V1.1 and V1.2/V1.3; a URL does not identify the physical
-PCB revision. The existing display/touch/backlight profile remains V1.1–V1.3 only.
+question. It covers V1.0, V1.1 and V1.2/V1.3; the user then separately confirmed
+PCB **V1.3**. The existing display/touch/backlight profile remains V1.1–V1.3 only.
 
 The manufacturer lists the following signal assignments (not a complete cable):
 
