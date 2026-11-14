@@ -31,7 +31,7 @@ def main():
     for p in files:
         rel=p.relative_to(ROOT)
         # Existing application sources and partition tables are never overwritten.
-        if rel.parts[0]=='apps' or rel.name in {'partitions.csv','dependencies.lock','.gitignore','PROJECT_CONTEXT.md'}:continue
+        if rel.parts[0]=='apps' or rel.name in {'partitions.csv','dependencies.lock','.gitignore'}:continue
         target=BUNDLE/'payload'/rel;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(p,target);manifest[str(rel)]=hashlib.sha256(p.read_bytes()).hexdigest()
     (BUNDLE/'manifest.json').write_text(json.dumps({'format':1,'version':'0.3.2','files':manifest},indent=2)+'\n')
     for name in ['apply_os_update.py','apply_connection_update.py','ota_config.py','install_c5_update.sh']:shutil.copy2(ROOT/'scripts'/name,BUNDLE/name)
