@@ -1,0 +1,1 @@
+{"package_id":"org.cyd.pocketpal","name":"Pocket Pal","version":"0.1.0","api_version":1,"entry_point":"main.lua","target":["esp32c5","esp32s3"],"permissions":["storage"]}

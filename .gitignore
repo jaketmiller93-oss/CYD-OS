@@ -1,0 +1,4 @@
+build-host/
+__pycache__/
+*.pyc
+*.ppm

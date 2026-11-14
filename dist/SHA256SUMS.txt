@@ -1,0 +1,2 @@
+d5fa878691cb11214bbdfa37b7929185df35e8f0d517ab8e18c5fa6d36034786  pocket-pal-0.1.0.cydapp
+0a4f1141636f0961805d1e1c824bf6d01de839d6aaff3c62ca6708fb631a4a0c  pocket-pal-source.zip
