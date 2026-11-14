@@ -1,0 +1,1 @@
+idf_component_register(SRCS "ui.c" "connections.c" "projects.c" "settings.c" INCLUDE_DIRS "." REQUIRES cyd_common board app_runtime esp_timer esp_psram storage network device_access ota_manager app_manager device_settings)

@@ -1,0 +1,2 @@
+# Synthetic compile-only configuration. Does NOT verify any physical board.
+CONFIG_CYD_BOARD_CONFIRMED=y

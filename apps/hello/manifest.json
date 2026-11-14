@@ -1,0 +1,14 @@
+{
+  "package_id": "com.local.hello",
+  "name": "Hello CYD",
+  "version": "0.1.0",
+  "api_version": 1,
+  "entry_point": "main.lua",
+  "target": [
+    "esp32s3",
+    "esp32c5"
+  ],
+  "permissions": [
+    "storage"
+  ]
+}

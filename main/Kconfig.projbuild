@@ -1,0 +1,38 @@
+menu "CYD OS"
+config CYD_BOARD_CONFIRMED
+    bool "I verified the selected board model, revision and manufacturer wiring"
+    default n
+    help
+        Hardware outputs remain disabled until you explicitly confirm the revision.
+        Select the matching board profile via CYD_BOARD before building.
+config CYD_WIFI_SSID
+    string "Initial station SSID (imported once into saved networks)"
+    default ""
+config CYD_WIFI_PASSWORD
+    string "Initial station password"
+    default ""
+config CYD_AP_PASSWORD
+    string "Initial AP password (12-63 characters; blank generates one)"
+    default ""
+config CYD_API_TOKEN
+    string "Deployment bearer token (minimum 24 characters)"
+    default ""
+endmenu
+menu "NM-CYD-C5 touch calibration (landscape rotation 3)"
+config CYD_C5_TOUCH_X_MIN
+    int "Raw Y offset for screen X"
+    range 0 4094
+    default 225
+config CYD_C5_TOUCH_X_SPAN
+    int "Raw Y span for screen X"
+    range 1 4095
+    default 3413
+config CYD_C5_TOUCH_Y_MIN
+    int "Raw X offset for screen Y"
+    range 0 4094
+    default 403
+config CYD_C5_TOUCH_Y_SPAN
+    int "Raw X span for screen Y"
+    range 1 4095
+    default 3334
+endmenu

@@ -1,0 +1,938 @@
+CrowPanel Advance 4.3-HMI ESP32 AI Display - Elecrow Wiki
+html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}
+__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}
+function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","GTM-5B55XSM"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","GTM-5B55XSM",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=GTM-5B55XSM",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}
+"undefined"!=typeof __md_analytics&&__md_analytics()
+/**
+   * 搜索懒加载：页面打开时不加载 search_index.json，
+   * 只在用户点击搜索框时才创建真实搜索 Worker。
+   */
+  (function() {
+    'use strict';
+
+    var OrigWorker = window.Worker;
+    var _dummy = null;
+    var _real = null;
+    var _workerUrl = null;
+    var _workerOpts = null;
+    var _activated = false;
+    var _queued = [];
+
+    window.Worker = function(url, options) {
+      if (typeof url === 'string' && /\/workers\/search/.test(url)) {
+        _workerUrl = url;
+        _workerOpts = options;
+
+        var dummyBlob = new Blob(
+          ['self.onmessage=function(){};'],
+          { type: 'application/javascript' }
+        );
+        _dummy = new OrigWorker(URL.createObjectURL(dummyBlob), options);
+
+        _dummy.postMessage = function(msg, transfer) {
+          _queued.push({ msg: msg, transfer: transfer });
+        };
+
+        return _dummy;
+      }
+      return new OrigWorker(url, options);
+    };
+
+    function activate() {
+      if (_activated || !_dummy) return;
+      _activated = true;
+
+      _real = new OrigWorker(_workerUrl, _workerOpts);
+
+      _dummy.postMessage = function(msg, transfer) {
+        _real.postMessage(msg, transfer);
+      };
+      _dummy.terminate = function() {
+        _real.terminate();
+      };
+
+      _real.addEventListener('message', function(e) {
+        _dummy.dispatchEvent(new MessageEvent('message', { data: e.data }));
+      });
+      _real.addEventListener('error', function(e) {
+        _dummy.dispatchEvent(new ErrorEvent('error', { message: e.message }));
+      });
+
+      _queued.forEach(function(q) {
+        _real.postMessage(q.msg, q.transfer);
+      });
+      _queued = [];
+    }
+
+    function watchSearch() {
+      var input = document.querySelector('.md-search__input');
+      if (input) {
+        input.addEventListener('focus', activate, { once: true });
+        input.addEventListener('click', activate, { once: true });
+        input.addEventListener('keydown', activate, { once: true });
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', watchSearch);
+    } else {
+      watchSearch();
+    }
+
+    new MutationObserver(function() {
+      if (!_activated) watchSearch();
+    }).observe(document.documentElement, { childList: true, subtree: true });
+
+  })();
+Skip to content
+Elecrow Wiki
+CrowPanel Advance 4.3-HMI ESP32 AI Display
+var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}
+Initializing search
+Elecrow Wiki
+Home
+Products
+Products
+Arduino
+Arduino
+Crowduino
+Crowduino Uno-SD
+Crowduino M0- SD
+Crowduino Mega2560
+ESP8266 IOT Board(Arduino IDE or NodeMCU Lua Programming)
+32u4 with A7 GPRS/GSM
+32u4 with A9G GPRS/GSM/GPS
+Smart Pump Shield
+Screw Shield
+Crowduino Leonardo
+Crowduino-Nano-V3.1
+Elecrow SIMduino UNO+SIM808 GPRS/GSM Board
+32u4 with A6 GPRS/GSM
+Leonardo GPRS/GSM IOT Board v1.1
+Nano 168(Arduino Compatible)
+Easy Module Shield for Arduino UNO
+IO Shield For Arduino Nano
+Arduino CNC Shield
+Larduino Mini
+Crowduino Pro Mini
+Elecrow ESPduino UNO+ESP8266 Wifi Board
+ESP32 WIFI/BLE Board v1.0
+32u4 with Lora RFM95 IOT Board-868MHz
+RFM69 Shield
+2.4 inch TFT Touch Shield for Arduino
+3.5 Inch TFT Color Screen Module 320 X 480 Support Arduino UNO Mega2560
+TEXT
+Shield
+Shield
+GPRS/GSM Shield v1.0
+Ehternet Shield
+WiFi Shield
+GPS shield
+2.8'' TFT Touch Shield
+Dual Channel H-Bridge Motor Shield
+Relay Shield
+CC3000 WiFi Shield
+USB Host Shield for Arduino
+Lipower Shield v1.1
+Mini solar Lipo Charger v1.0
+USB Hub&Powermanager for RPI Zero v1.0
+Current/Voltage/Power Monitor HAT for Raspberry Pi
+Breakout Board for micro:bit IO Expansion Board
+Rainbow Shield
+Bluetooth Shield v1.0
+NFC Shield
+Motor Shield v1.0
+Wireless SDshield
+Motor&Stepper Shield
+EM Shield
+CAN-BUS Shield
+Joystick Shield
+SIM5360E 3G Shield
+Speech Interaction board for Raspberry Pi
+Power over Internet(POE) Hat for Raspberry Pi
+Uninterruptible Power Supply UPS HAT For Raspberry Pi
+4 Channel I2C Motor Shield v1.1
+XBee shield
+LCD Keypad Shield
+Arduino Motor/Stepper/Servo Shield
+8-Channel EL Shield
+SIM808 GPRS/GSM+GPS Shield
+RTC Data Logger Shield v1.1
+Capacitive Touch Shield
+VS1053 MP3 Shield
+AVR ISP Shield
+Solderless Protoboard for raspberry pi v1.0
+IMX219-83 Stereo Camera
+Binocular Stereo Vision Expansion Board for Raspberry Pi
+Mbits
+Pico Shield
+Crowtail
+Crowtail
+Crowtail- Base Shield
+Crowtail- Linear Potentiometer
+Crowtail- Sound Sensor
+Crowtail- UV Sensor
+Crowtail- Thumb Joystick
+Crowtail- Button
+Crowtail- LED
+Crowtail- Buzzer
+Crowtail- Touch Sensor
+Crowtail- Tilt Switch
+Crowtail- I2C LCD
+Crowtail- Infrared Temperature Sensor
+Crowtail- Digital Light Sensor
+Crowtail- GPS
+Crowtail- One Wire Waterproof Temperature Sensor
+Crowtail- Dust Sensor
+Crowtail- Gas Sensor(MQ2)
+Crowtail- ES08A Mini Servo
+Crowtail- PIR Motion Sensor
+Crowtail- 3-Axis Digital Compass
+Crowtail- SIM808
+Crowtail- Microwave sensor
+Crowtail- Dry-Reed Relay
+Crowtail- Pulse Sensor
+Crowtail- Air Quality Sensor
+Crowtail- AM2302 Humidity&Temperature Sensor
+Crowtail- Solid-State Relay
+Crowtail- I2C Motor Driver
+Crowtail- LED Bar
+Crowtail- Protoboard
+Crowtail- SPDT Relay
+Crowtail- Super Bright
+Crowtail-Rotation Angle Sensor
+Crowtail- Haptic Motor
+Crowtail- TPL5111 Reset Enable Timer
+Crowtail- MEMS Microphone
+Crowtail- LiPo Fuel Gauge
+Crowtail- Mini PIR Motion Sensor
+Crowtail- BMP280 Barometer Sensor
+Crowtail- Strain Gauge sensor
+Crowtail- VL53L0X Laser Ranging Sensor
+Crowtail-Digital-Programmable-Potentiometer
+Crowtail-Weight Sensor
+Crowtail- MPU6050 Accelerometer & Gyro
+Crowtail- Vibration Motor
+Crowtail- Relay
+Crowtail- Moisture Sensor
+Crowtail- Light Sensor
+Crowtail- Hall Sensor
+Crowtail- Encoder
+Crowtail- IR Reflective Sensor
+Crowtail- Temperature& Humidity Sensor
+Crowtail- Analog Gyro
+Crowtail- MOSFET
+Crowtail- Flame Sensor
+Crowtail- Rotary Angle Sensor
+Crowtail-Nano Base Board
+Crowtail- Fingerprint Sensor
+Crowtail- Gas Sensor(MQ5)
+Crowtail- Adjustable Infrared Sensor
+Crowtail- 3-Axis Digital Gyro
+Crowtail- Gas Sensor(MQ9)
+Crowtail- I2C Color Sensor
+Crowtail- Collision Sensor
+Crowtail- 9G Servo
+Crowtail- Magnetic Switch
+Crowtail- Electromagnet
+Crowtail- Vibration Sensor
+Crowtail- Analog Grayscale Sensor
+Crowtail- Switch
+Crowtail- I2C EEPROM
+Crowtail- Recorder
+Crowtail- Speaker
+Crowtail- MP3
+Crowtail- Screw Terminal
+Crowtail- I2C Hub
+Crowtail- UV sensor(GUVA- S12SD 2.0
+Crowtail- PH Sensor
+Crowtail- NFC
+Crowtail- Logic Block
+Crowtail- 1.3 Inch OLED v1.0
+Crowtail- CurrentPower Sensor
+Crowtail-LED Matrix
+Crowtail- DHT20
+Crowtail- IMU 10DOF
+Crowtail- HTU21D Humidity& Temperature Sensor
+Crowtail-Knock Sensor
+Crowtail-GP02
+Crowtail- BMP180 Barometer
+Crowtail- Blutooth Low Energy Module
+Crowtail- Thermistor Temperaturen Sensor
+Crowtail- RTC
+Crowtail- Serial Wifi
+Crowtail- IR Emitter
+Crowtail- IR Receiver
+Crowtail- Current Sensor
+Crowtail- RGB-LED
+Crowtail- OLED
+Crowtail- Gas Sensor(MQ3)
+Crowtail- Water Sensor
+Crowtail- 3-Axis Digital Accelerometer
+Crowtail- Laser Pointer
+Crowtail- Ultrasonic Ranging Sensor
+Crowtail- 80cm Infrared Proximity Sensor
+Crowtail- 4-Digit Display
+Crowtail- Current Sensor Kit
+Crowtail- Extend board for Connection
+Crowtail- Photo Electric Counter
+Crowtail- Electricity Sensor
+Crowtail- Voltage Sensor
+Crowtail- thermocouple Sensor
+Crowtail- Gesture
+Crowtail- G1/4" Water Flow Sensor
+Crowtail- G1/2" Water Flow Sensor
+Crowtail- G3/4" Water Flow Sensor
+Crowtail- G1" Water Flow Sensor
+Crowtail- Non-contact liquid level sensor
+Crowtail- Serial Camera
+Crowtail- Luminance sensor
+Crowtail- Dual Channel Latching Module
+Crowtail- Temperature Sensor TMP102
+Crowtail- 315Mhz RF Receiver with Transmitter
+Crowtail- MAX30105 Particle Sensor
+Crowtail-Rotation Angle Sensor
+Crowtail-Capacitive Moisture V2.0
+Crowtail- Stackable Shield for Raspberry Pi 2.0
+Crowtail- Motor Base Shield
+Crowtail- A6 GPRS/GSM Module
+Crowtail- WIFI Module
+Crowtail- LoRa RA-08H
+Crowtail- DWM1000 UWB(Ultra Wide Band
+Crowtail- 4G SIM-A7670E
+Crowbits
+Crowbits
+Crowbits-LED (Red Green Yellow)
+Crowbits-Buzzer
+Crowbits-Relay
+Crowbits-Bright LED
+Crowbits-Vibration Motor
+Crowbits-Electromagnet
+Crowbits-DC Motor
+Crowbits-MOSFET
+Crowbits-MP3
+Crowbits-Recorder
+Crowbits-TPL5111 Timer
+Crowbits-Vibration Sensor
+Crowbits-Magnetic Switch
+Crowbits-Water Sensor
+Crowbits-Reaction
+Crowbits-Touch Sensor
+Crowbits-PIR Sensor
+Crowbits-Tilt Switch
+Crowbits-Button
+Crowbits-Switch
+Crowbits-Flame Sensor
+Crowbits-Collision Sensor
+Crowbits-IR Reflective Sensor
+Crowbits-Photo Electric Counter
+Crowbits-Hall Sensor
+Crowbits-Microphone
+Crowbits-Potentiometer
+Crowbits-Light Sensor
+Crowbits-Pressure Sensor
+Crowbits-Servo Control
+Crowbits-Linear Potentiometer
+Crowbits-Terminal
+Crowbits-315Mhz Emitter
+Crowbits-Expansion
+Crowbits-Protoboard
+Crowbits-Power Supply(S
+Crowbits-Power Supply
+Crowbits-Trigger Delay
+Crowbits-Logic AND
+Crowbits-Logic OR
+Crowbits-Logic NOT
+Crowbits-Logic Input
+Crowbits-315MHz Controller
+Crowbits-IR Emitter
+Crowbits-RGB LED
+Crowbits-LED Bar
+Crowbits-315Mhz Receiver
+Crowbits-IR Receiver
+Crowbits-DHT11 Sensor
+Crowbits-Gas Sensor
+Crowbits-Encoder
+Crowbits-Pulse Sensor
+Crowbits-Air Quality Sensor
+Crowbits-Grayscale Sensor
+Crowbits-UV Sensor
+Crowbits-Ultrasonic Ranging Sensor
+Crowbits-Thumb Joystick
+Crowbits-Digital Potentiometer
+Crowbits-Keyboard
+Crowbits-Voltage Sensor
+Crowbits-CurrentPower Sensor
+Crowbits-IR Temperature Sensor
+Crowbits-NFC
+Crowbits-Barometer Sensor
+Crowbits-Digital Light Sensor
+Crowbits-LED Matrix
+Crowbits-RGB Matrix
+Crowbits-HTU21D Humiture Sensor
+Crowbits-Laser Ranging Sensor
+Crowbits-Color Sensor
+Crowbits-RTC
+Crowbits-Gesture Sensor
+Crowbits-OLED
+Crowbits-EEPROM
+Crowbits-Digital Display
+Crowbits-WiFi
+Crowbits-GPS
+Crowbits-2G Module
+Crowbits-Microbit Compatible
+Crowbits-UNO
+Crowbits-80cm Infrared Proximity Sensor
+Crowbits-Adjustable Infrared Sensor
+Crowbits-9G Servo
+Crowbits-G1-4 Water Flow Sensor
+Crowbits-Non-Contact Liquid Level Sensor
+Crowbits-One Wire Waterproof Temperature Sensor
+Crowbits-Moisture Sensor
+Crowbits-DHT20
+Sensors
+Sensors
+Temperature & Humidity Sensor
+PIR Motion Sensor
+Tiny RTC
+Adjustable Infrared Sensor Switch
+Triple Axis Magnetometer Breakout
+Ultrasonic Ranging Sensor Module
+ACS712 Current Sensor- 5A
+1-Axis Analog Gyro Module-ENC03
+2-Axis Analog Gyro Module-ENC03
+Strain Gauge Module
+4MM Inductive Metal Proximity Sensor
+Fingerprint Sensor
+Infrared Thermometer MLX90614 Breakout Board
+Luminosity Sensor- TSL2561 Breakout
+HC-SR505 Mini PIR Motion Sensor
+Digital light Sensor
+Photosensor- Short Range
+Photosensor- Long Range
+One Wire Waterproof Temperature Sensor
+Accelerometer Breakout-MMA7361
+MPU-6050
+3-Axis Analog Gyro Module-ENC03
+Weight Sensor Scales Kit- 20KG
+Non-invasive AC Current Sensor-100A
+TCS3200 Colour Sensor Module
+Analog CO/Combustible Gas Sensor(MQ9
+UV Sensor ML8511
+Barometer Sensor
+IMU 10DOF LSM303D+L3GD20 +BMP180
+Encoder Gear Motor-25MM 95RPM
+Weight Sensor Amplifier-HX711
+DHT11
+Tiny Adjustable Infrared Sensor Switch
+Serial JPG Camera
+Dust Sensor- DSM501A
+Dust Sensor- GP2Y1010AU0F
+Pulse Sensor
+Sound Recorder- ISD1760
+80cm Infrared Proximity Sensor-GP2Y0A21YK0F
+Analog Smoke/LPG/CO Gas Sensor(MQ2
+Crowtail- G1/4" Water Flow Sensor
+ENC28J60 Ethernet Module
+UV Sensor Module-UVM30A
+APM2.5 Airspeed Breakout Board MPXV7002DP
+Soil Moisture Sensor
+Rectangle capacitive fingerprint scanner breathing light fingerprint AS608 sensor
+1019DRound fingerprint recognition sensor module ID809
+Wireless
+Wireless
+315/433Mhz RF Link Kit
+NRF24L01+PA+LNA Wireless Module
+Smart car with ESP32-CAM Board
+2.4G Wireless nRF24L01
+Serial Port Bluetooth Module
+Wireless Charger& Receiver
+433MHz RF Transceiver CC1101 Module
+Serial WIFI Transceiver Module ESP8266
+ESP32S WIFI BLE Board
+CrowBot-BOLT Programmable Smart Robot Car STEAM Robot Kit
+Lora RFM95 IOT Board for RPI
+SIM7670 4G Module with Mini PCIe Interface
+Wireless Module for Wi-Fi HaLow
+ESP32 Wi-Fi HaLow Module with 2MP Camera 32Mbps High Speed Long-distance transmission 915MHz
+Display
+Display
+0.96" OLED 128x64-Blue
+I2C 0.96" OLED 128x64-Blue
+1.44'' 128x128 TFT LCD with SPI Interface
+3.5 Inch 480x320 TFT Display with Touch Screen for Raspberry Pi
+3.95 Inch TFT Display for Raspberry Pi
+RC070M 7 inch 1024 X 600 Touch Screen Display with 720P Camera for Raspberry Pi/ MacBook Pro./ Windows 10
+RR070 7 Inch 1024x600 HDMI/VGA/AV Display for Raspberry Pi B/B+/2B/3B
+SF101C 10.1 inch 1280*800 IPS HDMI LCD Display(with case) for Raspberry Pi
+SF116 11.6 Inch 1920x1080 HDMI 1080P LED Display for Raspberry Pi
+2.9 inch e-Paper Module Three Color-Red Black White
+1.3 inch IPS TFT LCD Display ST7789
+Elecrow 10.1 inch Display IPS 1280x800 Acrylic Case Touch Screen Compatible with Raspberry Pi Jetson Nano PC
+5.0 Inch HDMI-Compatible Display for Raspberry Pi Compatible with Jetson Nano, Beaglebone
+I2C LCD2004(Yellow
+I2C LCD1602(Blue)
+WS2812 RGB LED Ring
+HDMI Interface 5 Inch 800x480 TFT Display
+4 Inch HD 480x320 TFT Display with Touch Screen for Rapberry Pi
+RC050 5 inch HDMI 800 x 480 Capacitive Touch LCD Display for Raspberry Pi/ PC/ SONY PS4
+ELECROW 11.6 Inch 1080P IPS 1920x1080 Monitor with Built-in Speaker for Raspberry Pi PS4 XBOX Windows without touch function
+ELECROW 11.6 Inch 1080P IPS 1920x1080 Monitor with Built-in Speaker for Raspberry Pi PS4 XBOX Windows with touch function
+SF101 10.1 Inch 1920x1080 Display HDMI VGA IPS PS3 PS4 Gaming Screen
+SF101R 10.1 Inch Portable HD Display for Raspberry Pi 3
+SF133 13.3 Inch IPS 1920X1080 Monitor Dual HDMI PortablePS3 PS4 Gaming Screen
+3.5inch 480x320 MCU SPI Serial TFT LCD Module Display
+Meteor Screen 10.1" IPS Touch Screen (with RGB Animated light)
+2.8'' TFT Touch Shield
+1602 LCD Display Module
+16x16 LED Display Module
+7 Inch 1024*600 HDMI LCD Display with Touch Screen
+7 Inch 1024x600 TFT Display for Raspberry Pi B+ Pcduino Banana Pi
+Elecrow RR040I 4 inch HD 800x480 Resolution IPS TFT Touch Screen Display for Raspberry Pi
+7 Inch TFT Display for Raspberry Pi B+ Banana Pi BB BLACK
+SF133M 13.3 inch 1920 x 1080 HDMI Portable Display for Raspberry Pi/ PS4/ XBOX/ NS
+RR040I 4 inch HD 800x480 Resolution IPS TFT Touch Screen Display for Raspberry Pi
+GC1016 10.1" TFT-LCD Monitor 1280*800 Color Screen with AV1 VGA HDMI BNC USB Input Built-in Speaker
+2 inch IPS Module
+Elecrow 10.1 Inch Touchscreen 1280x800 IPS TFT LCD Monitor Kit
+8 inch Touchscreen IPS Display 1280x800 Small Portable Monitor Compatible with Raspberry Pi 540043 Win 111087 Jetson Nano
+2.4 inch 320x240 SPI Serial TFT LCD Module Display With Driver IC ILI9341|With Touch Function
+2.8 inch 320x240 SPI Serial TFT LCD Module Display With Driver IC ILI9341|With Touch Function
+3.5 Inch 480*320 SPI TFT LCD Module with ILI9488 Driver|With Touch Function
+4.0 Inch 480*320 SPI TFT LCD Module with ST7796 Driver|With Touch Function
+2.8” 240x320 ESP32 LCD Touch Display | With WiFi and BT/BLE
+3.2” 240x320 ESP32 LCD Touch Display | With WiFi and BT/BLE
+3.5” 320x480 ESP32 LCD Touch Display | With WiFi and BT/BLE
+3.5” ESP32 S3 Display with 320x480 Capacitive IPS Touch Panel
+4.3” ESP32 S3 Touch Display 480272 Resisitive Touch With WiFi and BLE
+5.0” ESP32 S3 IPS Display 800x480 Capacitive Touchscreen Supports WiFi Bluetooth With Speaker Interface
+2.8-inch IPS SPI LCD Capacitive Touch Display Module With ILI9341 Driver - 240x320 Resolution, Arduino Compatible
+3.5-inch IPS SPI LCD Capacitive Touch Display Module With ST7796 Driver - 320x480 Resolution, Arduino Compatible
+4.0-inch Capacitive Touch SPI LCD Display Module With ST7796 Driver - 320x480 Resolution, Arduino Compatible
+4.3” 800*480 IPS Display 16BIT Parallel LCD Module| SSD1963 Driver |Capacitive Touch
+5.0” 800*480 IPS Display 16BIT Parallel LCD Module| SSD1963 Driver |Capacitive Touch
+7.0” 800*480 Display 16BIT Parallel LCD Module| SSD1963 Driver |Capacitive Touch
+2.8inch TFT Screen 320*240 Touch Display for Arduino, Mega|ILI9341 Driver|Plug & Play
+3.95 inch TFT Screen 480*320 Touch Display for Arduino, Mega | ST7796S Driver | Plug & Play
+2.8 inch 320x240 SPI Serial TFT LCD Module Display With Driver IC ILI9341|With Touch Function
+5inch IPS HD Display-C 1024*600 Touch Screen Compatible with Raspberry Pi/BB Black, etc
+5inch HD Touch Display-D 1024*600 IPS Screen Compatible with Raspberry Pi/BB Black, etc
+7inch IPS HD Touch Screen-D 1024*600 HD Monitor Compatible with Raspberry Pi/BB Black, etc
+10.1 inch_HD Touchscreen 1520*720 IPS Screen Designed for Raspberry Pi 5 point Capacitive Touch
+HMI Display
+HMI Display
+Wizee HMI touch display
+CrowPanel HMI Display Wiki Content
+CrowPanel ESP32 HMI Wiki Content
+ESP Terminal with 3.5inch RGB Capacitive Touch Display
+ESP Terminal with 3.5inch SPI Capacitive Touch Display
+CrowPanel ESP32 HMI 2.4-inch Display
+CrowPanel ESP32 HMI 2.8-inch Display
+CrowPanel ESP32 HMI 3.5-inch Display
+CrowPanel ESP32 HMI 4.3-inch Display
+CrowPanel ESP32 HMI 5.0-inch Display
+CrowPanel ESP32 HMI 7.0-inch Display
+2 PACK 2.4-inch ESP32 Solo Miner LCD Display
+2 PACK 2.8-inch ESP32 Solo Miner LCD Display
+CrowPanel PICO HMI 2.4'' Display
+CrowPanel PICO HMI 2.8'' Display
+CrowPanel PICO HMI 3.5'' Display
+CrowPanel PICO HMI 4.3'' Display
+CrowPanel ESP32 1.28-inch Round Display
+Pi Terminal
+CrowPanel ESP32 E-Paper HMI 1.54-inch Display
+CrowPanel ESP32 E-Paper HMI 2.13-inch Display
+CrowPanel ESP32 E-Paper HMI 2.9-inch Display
+CrowPanel ESP32 E-Paper HMI 3.7-inch Display
+CrowPanel ESP32 E-Paper HMI 4.2-inch Display
+CrowPanel ESP32 E-Paper HMI 5.79-inch Display
+CrowPanel Advance 2.4-HMI ESP32 AI Display
+CrowPanel Advance 2.8-HMI ESP32 AI Display
+CrowPanel Advance 3.5-HMI ESP32 AI Display
+CrowPanel Advance 4.3-HMI ESP32 AI Display
+CrowPanel Advance 4.3-HMI ESP32 AI Display
+Table of contents
+Version 1.0
+Pin Output:
+Functional description
+Schematic:
+Version 1.1
+Switching Function Keys：
+ESP32-S3 and wireless module wiring pins：
+Version 1.2/1.3
+Platforms Supported
+Resources
+How to buy
+Support
+CrowPanel Advance 5.0-HMI ESP32 AI Display
+CrowPanel Advance 7.0-HMI ESP32 AI Display
+CrowPanel 1.28inch-HMI ESP32 Rotary Display 240*240 IPS Round Touch Knob Screen
+CrowPanel 1.46-inch-HMI ESP32 Rotary Display 360*360 IPS Round Touch Knob Screen
+CrowPanel 2.1inch-HMI ESP32 Rotary Display 480*480 IPS Round Touch Knob Screen
+CrowPanel 2.01inch HMI ESP32 Watch Display 240*296 IPS Touch Screen WithMicrophone
+CrowPanel HMI ESP32 Rotary Display ESPHome course
+CrowPanel Advanced 5inch ESP32-P4 HMI AI Display 800*480 IPS Touch Screen with WiFi 6
+CrowPanel Advanced 7inch |ESP32-P4 HMI AI Display 1024*600 IPS Touch Screen with WiFi 6 Compatible with Arduino/LVGL
+CrowPanel Advanced 9inch |ESP32-P4 HMI AI Display 1024*600 IPS Touch Screen with WiFi 6 Compatible with Arduino/LVGL
+CrowPanel Advanced 10.1inch |ESP32-P4 HMI AI Display 1024*600 IPS Touch Screen with WiFi 6 Compatible with Arduino/LVGL
+10.1 Smart Home Control Panel for Home Assistant
+CrowVision
+CrowVision
+CrowVision 11.6'' Capacitive Touch Screen Portable HD 1366*768 IPS LCD Display
+CrowVision 7.0" Touch Screen Capacitive Portable HDMI-compatible 1024*600 IPS LCD Monitor
+CrowView
+CrowView
+CrowView Yoga 15.6" Dual Screen Portable Monitor |360° Foldable IPS Laptop Extender for Gaming and Mobile Office
+CrowView Note 15.6"
+CrowView Note 14 for Arduino UNO Q with Camera Kit
+Mechanical Keyboard
+Mechanical Keyboard
+Mechanical_Keyboard_ESP32-S3
+Elecrow Services
+Elecrow Services
+Elecrow Services
+PCB Fabricate Service Overview
+Q&A for PCB service
+Export gerber files from Eagle
+Export gerber files from Proteus_ARES
+Modules for Prototyping
+Modules for Prototyping
+Breadboard Power Supply
+ULN2003 Stepper Motor Driver
+Lipo Charger v1.0
+LED matrix kit
+1602 LCD Display Module
+RTD2556 Driver Board/Controller Board Kit
+devDuino Sensor Node V1.3 (ATmega 328)
+Adjustable Integrated DC-DC Module- LM2596S
+Accessories
+Accessories
+Transparent Acrylic Switches Tester Collection
+Application Kits
+Application Kits
+Crazepony MINI Quadcopter
+Elecrow Cooperator/Partner
+Elecrow Cooperator/Partner
+Cooperator Designer
+Drop Shipping
+Products Wiki
+Raspberry Pi
+Raspberry Pi
+CrowPi
+CrowPi-2
+CrowPi-L
+CrowPi-3
+PICO W5 RP2040 Dev Board
+Elecrow RP2350 Pico W5 Board
+Mini PC Case With 1.3” OLED Screen For Raspberry Pi 5/Jetson Orin Nano
+PiTower Gen 2 Mini PC_Case with 2.8 IPS Screen Dual SSD Slot Designed for Raspberry Pi 5
+Pi Power M.2 NVMe&PoE+ Hat for Raspberry Pi 5 Support M.2 NVMe SSDs 2230/2242/2260/2280
+Image Burning Method
+Arduino Kit
+Arduino Kit
+GrowCube
+Lora
+Lora
+Lora RA-08H Development Board
+Lora RA-08H Node Board
+Lora Basic Gateway Module
+LR1302 LoRaWAN Gateway Module
+LR1302 LoRaWAN HAT for RPI_PRD
+LR1262 LoRaWAN Node Module
+LR1262 Node Board LoRaWan Node Module for Long Range Communication
+LoRaWAN LR1262 Development Board Integrated RP2040 with 1.8" LCD for Long Range Communication
+Nrf52840 AT Instruction Description Documentation
+Elecrow nRFLR1110 Wireless Transceiver Module
+Elecrow nRFLR1121 Wireless Transceiver Module
+Elecrow nRFLR1262 Wireless Transceiver Module
+Elecrow nRFLRCC68 Wireless Transceiver Module
+Elecrow lr2021 lora module
+LoRa Node Expansion Board nRFLR1121 Integrates nRF52840 for Long Range Communication Support 868915 Mhz
+LoRa Node Expansion Board nRFLR1110 Integrates nRF52840 for Long Range Communication Support GNSS Position
+ThinkNode M1 Meshtastic (LoRa) Signal Transceiver Powered By nRF52840 with 1.54" Screen Support GPS-With Case-868 MHz
+ThinkNode M2 Meshtastic (LoRa) Signal Transceiver Powered By ESP32-S3 with 1.3” OLED Display-Without Case
+LR1262 Long-Range LoRa Wireless Transceiver Module | Ultra-Low Power | IoT/Industrial
+LRCC68 Long-Range LoRa Wireless Transceiver Module | Ultra-Low Power | IoT/Industrial
+ThinkNode G1 Indoor 8 Channels LoRaWAN Gateway Powered By SX1302 Chip
+ThinkNode G3-Single Channel LoRaWAN Gateway ESP32-S3 Chip Smart Home, Smart IoT Solutions
+ThinkNode G4 Wi-Fi HaLow Gateway Support Wi-Fi HaLow Ethernet Connections
+ThinkNode M3 Meshtastic Tracker With GPS/WiFi/BLE function For Indoor and Outdoor Positioning
+ThinkNode M3 LoRaWan Tracker With GPS/WiFi/BLE function For Indoor and Outdoor Positioning
+ThinkNode-M4 Power Bank LoRa Device with Meshtastic Function Powered By nRF52840
+ThinkNode M4 Power Bank LoRa Device with LoRa Tracker Function Powered By nRF52840
+ThinkNode M5 Meshtastic (LoRa) Signal Transceiver |ESP32-S3
+ThinkNode M6 Outdoor Solar Power for Meshtastic, Powered By nRF52840 Supports GPS
+ThinkNode M6 Outdoor Solar Power for LoRa, Powered By nRF52840 Supports GPS
+ThinkNode M7 Meshtastic Wireless Communication Gateway
+ThinkNode M7 LoRaWAN Wireless Communication Gateway Support PoE Power
+ThinkNode M9 MeshCore Communication Terminal with Full Keyboard
+Meshstick USB To SPI SX1262 TCXO LoRa USB Stick
+ThinkNode M9 Meshtastic Communication Terminal with Full Keyboard
+STEAM Education
+STEAM Education
+All-in-one Starter Common Board Kit for Arduino
+All-in-one Starter Kit for Pico 2
+All-in-one Starter Kit for Micro:bit with Common Board design:13 Modules and 21 Lessons
+All-in-one Starter Kit for ESP32-P4 with Common Board design
+AI Camera Development Board Vision Sensor Board Powered By ESP32
+AI Panda ChatBot
+AI Starter Kit for Jetson
+26 in 1 Learning Kit for Arduino UNO_R4 with 26 lessons Support WiFi and BLE
+All in one Starter Kit for Arduino NANO R4 with 20 lessons and 16 modules
+Tutorials
+Back to Community
+Table of contents
+Version 1.0
+Pin Output:
+Functional description
+Schematic:
+Version 1.1
+Switching Function Keys：
+ESP32-S3 and wireless module wiring pins：
+Version 1.2/1.3
+Platforms Supported
+Resources
+How to buy
+Support
+CrowPanel Advance 4.3-HMI ESP32 AI Display
+¶
+Model
+DIS01943A
+Version 1.0
+¶
+Pin Output:
+¶
+Functional description
+¶
+Functional description of the product's internal interfaces:
+Pin Name
+Description
+Connector Type
+SPK
+Output audio signals to connect to speakers. The main board comes with a power amplifier chip circuit.
+PH2.0-2P
+PWR
+Power LED.
+RST
+Reset button. Press it to reset the system.
+boot
+UART0-OUT
+Builds communication between Logic modules, including the serial communication module and the print module.
+HY2.0-4P
+UART1-OUT
+Builds communication between Logic modules, including the serial communication module and the print module.
+HY2.0-4P
+UART0-IN
+Input power supply and serial communication functionality
+XH2.54-4P
+I2C-OUT
+Establish communication between the microcontroller and peripheral devices.
+HY2.0-4P
+BAT
+Connect the lithium battery. (with battery charging circuit)(Input voltage: 3.7–4.2 V)
+PH2.0-2P
+Product External Interface Functions:
+4.3-inch HMI port
+pin number
+Electrical Characteristics
+UART0-OUT
+RX(IO44); TX(IO43) RX;
+Output voltage: 3.3V
+Output current: 1A max.
+Use: Power supply output and communication.
+UART1-OUT
+RX(IO19); TX(IO20) RX;
+Output voltage: 3.3V
+Output current: 1A max.
+Use: Power supply output and communication.
+UART0-IN
+RX(IO44); TX(IO43) RX;
+Input voltage: 5V ± 5%. 5.5V max.
+Input current: 2A max.
+Purpose: Power supply input and communication.
+I2C
+SDA(IO15); SCL(IO16) ;
+Output voltage: 3.3V
+Output current: 1A max.
+Use: Power supply output and communication.
+SPK
+I2S_LRCLK(IO6);I2S_BCLK(IO5);I2S_SDIN(IO4);
+Maximum output current: 20mA
+Signal type: 3.3V logic level, digital control signal
+SD Card Slot
+MOSI(IO6); MISO(IO4); CLK(IO5); CS(3.3V)
+Maximum output current: 20mA
+Signal type: 3.3V logic level, digital control signal
+LCD Backlight
+PCA9557PW-IO1
+Maximum output current: 20mA
+Signal type: 3.3V logic level, digital control signal
+I2S MIC
+MIC_SD(IO20);MIC_WS(IO2);MIC_CLK(IO19)
+Maximum output current: 20mA
+Signal type: 3.3V logic level, digital control signal
+BUZZER
+IO8
+Maximum output current: 20mA
+Signal type: 3.3V logic level, digital control signal
+Switching Function Keys：
+S1
+S0
+effective function
+0
+0
+MIC&SPK
+0
+1
+WM(wireless module)
+1
+0
+TF Card
+Schematic:
+¶
+ESP32-S3 and ISP Display Wiring Pins:
+ESP32-S3 and Touch Driver Wiring：
+i2c address: 0x5D.
+ESP32-S3 and wireless module wiring pins：
+Schematic diagram of function selection:
+Switching Function Keys：
+S1
+S0
+effective function
+0
+0
+MIC&SPK
+0
+1
+WM(wireless module)
+1
+0
+TF Card
+Version 1.1
+¶
+4.3-inch HMI port
+pin number
+Electrical Characteristics
+UART0-OUT
+RX(IO44); TX(IO43) RX;
+Output voltage: 3.3V Output current: 1A max. Use: Power supply output and communication.
+UART1-OUT
+RX(IO19); TX(IO20) RX;
+Output voltage: 3.3V Output current: 1A max. Use: Power supply output and communication.
+UART0-IN
+RX(IO44); TX(IO43) RX;
+Input voltage: 5V ± 5%. 5.5V max. Input current: 2A max. Purpose: Power supply input and communication.
+I2C
+SDA(IO15); SCL(IO16) ;
+Output voltage: 3.3V Output current: 1A max. Use: Power supply output and communication.
+SPK
+I2S_LRCLK(IO6);I2S_BCLK(IO5);I2S_SDIN(IO4);
+Maximum output current: 20mA Signal type: 3.3V logic level, digital control signal
+SD Card Slot
+MOSI(IO6); MISO(IO4); CLK(IO5); CS(3.3V)
+Maximum output current: 20mA Signal type: 3.3V logic level, digital control signal
+LCD Backlight_PWR
+P3.5（STC8H1K28）
+Maximum output current: 20mA Signal type: 3.3V logic level, digital control signal
+Backlight Adjustment
+P1.1（STC8H1K28）
+I2S MIC
+MIC_SD(IO20);MIC_CLK(IO19)
+Maximum output current: 20mA Signal type: 3.3V logic level, digital control signal
+BUZZER
+P2.7（STC8H1K28）
+Maximum output current: 20mA Signal type: 3.3V logic level, digital control signal
+TP_RST
+P1.7（STC8H1K28）
+power amplifier SHUT
+P3.6（STC8H1K28）
+Switching Function Keys：
+¶
+S1
+S0
+effective function
+0
+0
+MIC&SPK
+0
+1
+WM(wireless module)
+1
+1
+MIC&TF Card
+ESP32-S3 and wireless module wiring pins：
+¶
+Version 1.1
+① Version 1.3 introduces an updated backlight control function. In this iteration, the backlight is managed by the STC8H1K28 microcontroller. The programme illuminates the backlight by transmitting numerical values to the microcontroller's address (0x30). Brightness adjustment spans 0-245 levels, where 0 denotes maximum brightness, 244 represents minimum brightness, and 245 disables the backlight.
+The buzzer control principle mirrors that of the backlight: sending 246 activates the buzzer, while sending 247 deactivates it.
+Version 1.2/1.3
+¶
+Only the button component has been updated. All other hardware and I/O pins remain the same as in the previous version.
+Platforms Supported
+¶
+Arduino IDE
+ESP-IDF
+platformIO
+Arduino IDE View Tutorials -- V1.0
+Arduino IDE View Tutorials -- V1.1/V1.2/V1.3
+ESP-IDF View Tutorials -- V1.0
+ESP-IDF View Tutorials -- V1.1/V1.2/V1.3
+platfoemIO View Tutorials -- V1.0
+platfoemIO View Tutorials -- V1.1/V1.2/V1.3
+ESPHome
+SquareLine Studio
+Meshtastic
+ESPHome View Tutorials -- V1.0
+ESPHome View Tutorials -- V1.1/V1.2
+SquareLine Studio View Tutorials -- V1.0
+SquareLine Studio View Tutorials -- V1.1/V1.2/V1.3
+Meshtastic View Tutorials
+Thread Wireless
+ESP-matter
+Resources
+¶
+Github link：
+CrowPanel Advance 4.3 HMI ESP32 800x480
+(This GitHub link usually may contain 3D files, schematics, program code, factory firmware, factory sourcecode and other materials. Please click to view.)
+Code lib link:
+CrowPanel-Advance-HMI-lib
+Wireless link:
+Wireless module
+How to buy
+¶
+Please visit
+this page
+to purchase ESP32 Display-4.3 inch(Advance_Series).
+Support
+¶
+If you encounter any issues while using the service, you can contact us via the social media links in the bottom-right corner of
+elecrow
+or send an email to
+techsupport@elecrow.com
+for technical support.
+var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))
+Previous
+CrowPanel Advance 3.5-HMI ESP32 AI Display
+Next
+CrowPanel Advance 5.0-HMI ESP32 AI Display
+Made with
+Material for MkDocs
+{"annotate": null, "base": ".", "features": ["content.action.edit", "content.action.view", "content.code.annotate", "content.code.copy", "content.footnote.tooltips", "content.tooltips", "navigation.footer", "navigation.indexes", "navigation.instant", "navigation.sections", "search.highlight", "search.share", "search.suggest", "toc.follow"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}
+<!-- Google Tag Manager -->
+	(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+			new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+		j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+		'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+	})(window,document,'script','dataLayer','GTM-5B55XSM');
+	<!-- End Google Tag Manager -->
+const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });

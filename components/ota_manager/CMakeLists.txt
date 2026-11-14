@@ -1,0 +1,12 @@
+idf_component_register(SRCS "ota.c" "policy.c" "descriptor.c" INCLUDE_DIRS "include" PRIV_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}"
+    REQUIRES cyd_common app_update esp_partition esp_app_format bootloader_support esp_timer esp_hw_support spi_flash app_runtime)
+if(NOT CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE)
+    message(FATAL_ERROR "CYD OS OTA requires CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y. Apply the OTA bootstrap update to your sdkconfig first.")
+endif()
+if(CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK)
+    message(FATAL_ERROR "This CYD OS updater does not support eFuse anti-rollback configurations")
+endif()
+get_filename_component(layout_file "${CONFIG_PARTITION_TABLE_CUSTOM_FILENAME}" ABSOLUTE BASE_DIR "${PROJECT_DIR}")
+file(SHA256 "${layout_file}" CYD_LAYOUT_SHA256)
+configure_file(cyd_layout.h.in "${CMAKE_CURRENT_BINARY_DIR}/cyd_layout.h" @ONLY)
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-u cyd_os_image_descriptor")

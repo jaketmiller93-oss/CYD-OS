@@ -1,0 +1,2 @@
+#pragma once
+#define CYD_LAYOUT_SHA256 "@CYD_LAYOUT_SHA256@"
