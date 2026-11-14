@@ -4,6 +4,7 @@
 #include "cyd_network.h"
 #include "cyd_ota.h"
 #include "cyd_projects.h"
+#include "cyd_peer.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_psram.h"
@@ -74,6 +75,7 @@ static esp_err_t status(httpd_req_t *r) {
     char ip[32];
     cyd_network_address(ip, sizeof(ip));
     cJSON *o = cJSON_CreateObject();
+    cJSON_AddItemToObject(o, "peer_link", cyd_peer_status());
     cJSON_AddStringToObject(o, "model", cyd_board_model());
     cJSON_AddStringToObject(o, "firmware", cyd_system_version());
     cJSON_AddStringToObject(o, "target", CONFIG_IDF_TARGET);

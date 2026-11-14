@@ -1,0 +1,28 @@
+menu "Experimental S3/C5 diagnostic link"
+config CYD_LINK_ENABLE
+    bool "Enable diagnostic link (not network/app offload)"
+    default n
+    help
+        S3 identifies as application host and C5 as connectivity companion.
+        This increment only negotiates and tests a serial link. Existing services
+        remain standalone. No Lua API, secret transfer or wireless proxy is enabled.
+config CYD_LINK_WIRING_CONFIRMED
+    bool "I verified the exposed UART wiring against both actual board schematics"
+    depends on CYD_LINK_ENABLE
+    default n
+config CYD_LINK_TX_GPIO
+    int "UART1 TX GPIO (-1 until actual connector is verified)"
+    depends on CYD_LINK_ENABLE
+    range -1 48
+    default -1
+config CYD_LINK_RX_GPIO
+    int "UART1 RX GPIO (-1 until actual connector is verified)"
+    depends on CYD_LINK_ENABLE
+    range -1 48
+    default -1
+config CYD_LINK_BAUD
+    int "UART baud"
+    depends on CYD_LINK_ENABLE
+    range 115200 921600
+    default 115200
+endmenu

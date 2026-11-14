@@ -45,3 +45,19 @@ credentials; API version remains 1. OS settings/partition schemas are unchanged.
 The generic apps/platform_demo is packaged separately; no third-party app is part
 of the firmware. See docs/UPGRADE-0.4.md and the current validation record for the
 new test/build results and remaining hardware limitations.
+
+Paired-device direction (experimental branch `codex/paired-device-foundation`):
+S3 should own app Lua/UI/SD, C5 should own connectivity and approved background
+services. Read docs/PAIRED-ARCHITECTURE.md. The new component currently implements
+only a diagnostic UART session/echo link; no network proxy, forwarded upload,
+background job API, credential sharing or paired OTA is claimed. UART defaults
+disabled; no physical pin assignments or hardware acceptance exist. The new S3
+is known only as Elecrow; exact model/revision/connector remains unconfirmed.
+
+Open user incident: Pocket Pal upload on running C5 OS 0.4.0 produced a quick screen
+flash/return to Home while Safari waited for verification; app not listed and RAM
+logs had no upload entry. Actual reboot/panic not established. User is away from
+USB access; capture serial crash output later. Native full installer/storage test
+with the exact package succeeded, but early rejected installs have an uninitialized
+error-message path to fix separately. Do not call either issue resolved or assume
+moving to S3 fixes it. The pet is on independent `apps/pocket-pal`, not firmware.

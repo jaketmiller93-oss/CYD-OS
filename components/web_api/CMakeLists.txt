@@ -1,1 +1,1 @@
-idf_component_register(SRCS "web.c" INCLUDE_DIRS "." EMBED_TXTFILES "dashboard.html" REQUIRES cyd_common esp_http_server app_manager app_runtime storage network esp_psram device_access ota_manager device_settings)
+idf_component_register(SRCS "web.c" INCLUDE_DIRS "." EMBED_TXTFILES "dashboard.html" REQUIRES device_link cyd_common esp_http_server app_manager app_runtime storage network esp_psram device_access ota_manager device_settings)

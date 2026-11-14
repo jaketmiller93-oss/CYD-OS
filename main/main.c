@@ -4,6 +4,7 @@
 #include "cyd_access.h"
 #include "cyd_ota.h"
 #include "cyd_device.h"
+#include "cyd_peer.h"
 void app_main(void) {
     esp_err_t ota = cyd_ota_init();
     if (ota)
@@ -48,6 +49,8 @@ void app_main(void) {
         ESP_LOGE("boot", "Connection service unavailable");
         return;
     }
+    if (cyd_peer_start())
+        cyd_log("peer", "Diagnostic link not started; standalone OS remains available");
     e = cyd_web_start();
     if (e) {
         ESP_LOGE("boot", "Web API initialization failed");

@@ -5,7 +5,12 @@ the [complete project reference](docs/PROJECT-REFERENCE.md) first.
 
 **Downloads:** [Firmware, setup ZIPs and examples](releases/README.md).
 
-Latest platform: **0.4.0**, with app-owned HTTP/TLS/MQTT, timers, expanded UI,
+This experimental branch adds an opt-in S3/C5 **diagnostic UART link**.
+Read [the paired-device architecture](docs/PAIRED-ARCHITECTURE.md). Network/app
+offload and persistent background services are not implemented by this increment;
+existing release downloads do not include it. UART is disabled by default.
+
+Latest prepared platform: **0.4.0**, with app-owned HTTP/TLS/MQTT, timers, expanded UI,
 JSON/resources, scoped NVS credentials and package permission inspection.
 Read [the Lua API](docs/LUA-API-0.4.md), [security/quotas](docs/SECURITY-0.4.md)
 and [upgrade/rollback instructions](docs/UPGRADE-0.4.md).
