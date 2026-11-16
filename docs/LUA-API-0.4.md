@@ -7,10 +7,15 @@ limits, OS Home/Stop and board settings remain. The new generic example lives in
 
 ## Manifest and inspection
 
-Supported permissions: `storage`, `network`, `mqtt`, `credentials`. An empty list
+Supported permissions: `storage`, `network`, `mqtt`, `credentials`, `documents`. An empty list
 is valid. Unknown permissions and API versions are rejected. Packages retain the
 512 KiB / 48 files / 64 KiB per-file ZIP_STORED limits, manifest/entry/API/target
 validation and path/CRC checks.
+
+Offline Essentials adds the explicit `documents` permission, read-only
+`cyd.time.now()`, native text wrapping and optional UI styles. Requires C5 0.4.4c
+or S3 0.4.3s. Existing API1 contracts remain. See [OFFLINE-ESSENTIALS.md](OFFLINE-ESSENTIALS.md)
+for the current additions, scope and bounds.
 
 ```bash
 cydctl inspect apps/platform_demo
@@ -240,8 +245,9 @@ change partitions or program eFuses. Credentials also exist in RAM/Lua strings.
 Installing different code with the same package ID grants that code the same app
 identity; packages are not publisher-signed. See SECURITY-0.4.md.
 
-Lua retains its 1 MiB allocator, instruction hooks, 500 ms entry/callback budget
-and cancellation. C-call nesting is capped at 32. Application __gc/__close are
+Lua retains its 1 MiB allocator, instruction hooks and cancellation. From the
+paired0.5.1 implementation, the500ms entry/callback allowance excludes bounded
+native UI calls and scheduler yields; an independent5s wall limit still applies. C-call nesting is capped at 32. Application __gc/__close are
 rejected because Lua disables hooks for finalizers; user metatables are copied
 and protected against late finalizer injection. Ordinary __index-based object
 patterns work. IO/package/debug/coroutine/load/pcall APIs remain unavailable.

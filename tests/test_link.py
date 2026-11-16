@@ -9,6 +9,8 @@ import tty
 import unittest
 import zlib
 ROOT=Path(__file__).resolve().parents[1]
+class Health(C.Structure):
+ _fields_=[('uptime_ms',C.c_uint64),('free_heap',C.c_uint32),('sd_ready',C.c_bool),('network_address',C.c_bool),('version',C.c_char*32)]
 class Event(C.Structure):
  _fields_=[('id',C.c_uint32),('result',C.c_int),('size',C.c_size_t),('data',C.c_ubyte*256)]
 def encode(raw):
@@ -32,6 +34,7 @@ class Link(unittest.TestCase):
   subprocess.run(common+['-DLINK_FUZZ_MAIN','-fsanitize=address,undefined','-fno-sanitize-recover=all']+sources+['-o',str(out/'fuzz')],check=True)
   cls.fuzz=out/'fuzz';cls.lib=C.CDLL(str(out/'link.so'));l=cls.lib
   l.link_reset.argtypes=[C.c_uint,C.c_int,C.c_uint64];l.link_tick.argtypes=[C.c_uint,C.c_uint64];l.link_feed.argtypes=[C.c_uint,C.c_void_p,C.c_size_t];l.link_tx.argtypes=[C.c_uint,C.c_void_p,C.c_size_t];l.link_tx.restype=C.c_size_t;l.link_ping.argtypes=[C.c_uint,C.c_void_p,C.c_size_t,C.c_uint];l.link_ping.restype=C.c_uint32;l.link_cancel.argtypes=[C.c_uint,C.c_uint32];l.link_event.argtypes=[C.c_uint,C.POINTER(Event)];l.link_serial.argtypes=[C.c_uint,C.c_uint32]
+  l.link_health_send.argtypes=[C.c_uint,C.POINTER(Health)];l.link_health_get.argtypes=[C.c_uint,C.POINTER(Health),C.POINTER(C.c_uint32)];l.link_health_serial.argtypes=[C.c_uint,C.c_uint32]
  @classmethod
  def tearDownClass(cls):cls.tmp.cleanup()
  def setUp(self):self.assertTrue(self.lib.link_reset(0,1,11));self.assertTrue(self.lib.link_reset(1,2,22))
@@ -116,3 +119,32 @@ class Link(unittest.TestCase):
   finally:os.close(a);os.close(b)
  def test_native_sanitizer_malformed_traffic(self):
   result=subprocess.run([str(self.fuzz)],capture_output=True,text=True);self.assertEqual(result.returncode,0,result.stderr)
+
+ def health(self,node):
+  h=Health();age=C.c_uint32();return (h,age.value) if self.lib.link_health_get(node,C.byref(h),C.byref(age)) else None
+ def send_health(self,node=0):
+  h=Health(1234567890123,456789,True,False,b'0.4.1-pair.1');return self.lib.link_health_send(node,C.byref(h))
+ def status_frame(self,identity=1,boot=22,target=11,version=b'peer',flags=3,schema=1):
+  body=struct.pack('<QBBHQI32s',target,schema,flags,0,9876543210,123456,version)
+  return frame(5,2,boot,identity,body)
+ def test_status_two_board_exchange_fragmented(self):
+  self.assertFalse(self.send_health());self.connect(1);self.assertTrue(self.send_health());self.assertTrue(self.send_health(1));self.pump(1)
+  for node in [0,1]:
+   h,age=self.health(node);self.assertEqual((h.uptime_ms,h.free_heap,h.sd_ready,h.network_address,h.version,age),(1234567890123,456789,True,False,b'0.4.1-pair.1',0));self.assertIsNone(self.event(node))
+ def test_status_independent_reference_and_expiry_despite_heartbeat(self):
+  self.connect();self.feed(0,self.status_frame(),1);h,age=self.health(0);self.assertEqual(h.version,b'peer');self.lib.link_tick(0,2999);self.assertEqual(self.health(0)[1],2999)
+  self.feed(0,frame(2,2,22,payload=struct.pack('<QI',11,3)));self.lib.link_tick(0,3000);self.assertTrue(self.lib.link_ready(0));self.assertIsNone(self.health(0))
+ def test_status_rejects_wrong_receiver_session_and_nonincreasing_sequence(self):
+  self.connect();self.feed(0,self.status_frame(target=99));self.assertIsNone(self.health(0));self.feed(0,self.status_frame(identity=2));self.lib.link_tick(0,100);self.feed(0,self.status_frame(identity=1,version=b'stale'));self.feed(0,self.status_frame(identity=2,version=b'duplicate'));self.assertEqual(self.health(0)[0].version,b'peer');self.assertEqual(self.health(0)[1],100)
+ def test_status_rejects_malformed_without_replacing_last_good(self):
+  self.connect();self.feed(0,self.status_frame());bad=self.lib.link_bad(0)
+  for packet in [self.status_frame(identity=2,flags=4),self.status_frame(identity=2,schema=2),self.status_frame(identity=0),self.status_frame(identity=2,version=b''),self.status_frame(identity=2,version=b'x'*32),self.status_frame(identity=2,version=b'<script>\n'),self.status_frame(identity=2,version=b'a\0b'),frame(5,2,22,2,b'short')]:self.feed(0,packet)
+  self.assertEqual(self.lib.link_bad(0),bad+8);self.assertEqual(self.health(0)[0].version,b'peer')
+ def test_status_reset_loss_and_stale_session_never_remain_visible(self):
+  self.connect();self.feed(0,self.status_frame(identity=9));self.assertIsNotNone(self.health(0));self.lib.link_tick(0,3500);self.assertIsNone(self.health(0));self.feed(0,frame(2,2,22,payload=struct.pack('<QI',11,3)));self.feed(0,self.status_frame(identity=8));self.assertIsNone(self.health(0));self.feed(0,self.status_frame(identity=10));self.assertIsNotNone(self.health(0));self.feed(0,frame(1,2,33,payload=struct.pack('<I',3)));self.assertIsNone(self.health(0));self.feed(0,frame(2,2,33,payload=struct.pack('<QI',11,3)));self.feed(0,self.status_frame(boot=22,identity=11));self.assertIsNone(self.health(0));self.feed(0,self.status_frame(boot=33,identity=1));self.assertIsNotNone(self.health(0))
+ def test_status_legacy_peer_keeps_echo_and_cannot_receive_status(self):
+  self.feed(0,frame(2,2,22,payload=struct.pack('<QI',11,1)));self.assertTrue(self.lib.link_ready(0));self.assertFalse(self.send_health());self.feed(0,self.status_frame());self.assertIsNone(self.health(0));i=self.lib.link_ping(0,b'x',1,1000);self.assertTrue(i);self.feed(0,frame(4,2,22,i,b'x'));self.assertEqual(self.event().result,0)
+ def test_status_quota_sequence_exhaustion_and_invalid_local_input(self):
+  self.connect()
+  for _ in range(8):self.assertTrue(self.send_health())
+  self.assertFalse(self.send_health());self.pump();self.assertIsNotNone(self.health(1));self.assertTrue(self.send_health());self.lib.link_health_serial(0,0xffffffff);self.assertFalse(self.send_health());h=Health(version=b'bad version');self.assertFalse(self.lib.link_health_send(1,C.byref(h)));h=Health(version=b'x'*32);self.assertFalse(self.lib.link_health_send(1,C.byref(h)))

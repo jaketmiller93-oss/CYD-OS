@@ -1,0 +1,22 @@
+#include "pager.h"
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+static uint16_t buffer[320*24];static lv_point_t point;static bool down;
+static unsigned hits[16];
+static void clicked(lv_event_t *e){hits[(unsigned)(uintptr_t)lv_event_get_user_data(e)]++;}
+static void read_pointer(lv_indev_t *i,lv_indev_data_t *d){(void)i;d->point=point;d->state=down?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
+static void flush(lv_display_t *d,const lv_area_t *a,uint8_t *p){(void)a;(void)p;lv_display_flush_ready(d);}
+static void render(void){for(unsigned i=0;i<8;i++){lv_tick_inc(20);lv_timer_handler();}}
+static lv_obj_t *root(bool grid,int height){lv_obj_t *r=lv_obj_create(lv_screen_active());lv_obj_set_size(r,304,height);lv_obj_set_pos(r,0,0);lv_obj_set_style_pad_all(r,8,0);lv_obj_set_style_border_width(r,0,0);lv_obj_set_style_pad_row(r,8,0);lv_obj_set_style_pad_column(r,8,0);lv_obj_set_flex_flow(r,grid?LV_FLEX_FLOW_ROW_WRAP:LV_FLEX_FLOW_COLUMN);return r;}
+static lv_obj_t *button(lv_obj_t *r,unsigned n,bool tile){lv_obj_t *b=lv_button_create(r);lv_obj_set_size(b,tile?80:LV_PCT(100),tile?80:40);lv_obj_add_event_cb(b,clicked,LV_EVENT_CLICKED,(void *)(uintptr_t)n);return b;}
+static void bounds(lv_obj_t *r){render();assert(!lv_obj_has_flag(r,LV_OBJ_FLAG_SCROLLABLE));assert(lv_obj_get_scroll_y(r)==0);lv_area_t c;lv_obj_get_content_coords(r,&c);for(unsigned n=0;n<lv_obj_get_child_count(r);n++){lv_obj_t *o=lv_obj_get_child(r,n);if(lv_obj_has_flag(o,LV_OBJ_FLAG_HIDDEN))continue;lv_area_t a;lv_obj_get_coords(o,&a);assert(a.x1>=c.x1 && a.y1>=c.y1 && a.x2<=c.x2 && a.y2<=c.y2);}}
+static void tap(lv_obj_t *o){lv_area_t a;lv_obj_get_coords(o,&a);point=(lv_point_t){(a.x1+a.x2)/2,(a.y1+a.y2)/2};down=true;render();down=false;render();}
+int main(int argc,char **argv){assert(argc==2);lv_init();lv_display_t *d=lv_display_create(320,240);lv_display_set_color_format(d,LV_COLOR_FORMAT_RGB565);lv_display_set_buffers(d,buffer,NULL,sizeof(buffer),LV_DISPLAY_RENDER_MODE_PARTIAL);lv_display_set_flush_cb(d,flush);lv_indev_t *input=lv_indev_create();lv_indev_set_type(input,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(input,read_pointer);lv_theme_default_init(d,lv_palette_main(LV_PALETTE_BLUE),lv_palette_main(LV_PALETTE_CYAN),true,LV_FONT_DEFAULT);
+ int test=atoi(argv[1]);
+ if(test==0){lv_obj_t *r=root(false,100);lv_obj_t *buttons[3];for(unsigned i=0;i<3;i++)buttons[i]=button(r,i,false);cyd_pager_attach(r);render();cyd_nav_state_t state;cyd_pager_state(r,&state);assert(state.pages==3&&!state.back&&state.next);bounds(r);tap(buttons[0]);assert(hits[0]==1&&!hits[1]);assert(cyd_pager_move(r,1));bounds(r);tap(buttons[1]);assert(hits[1]==1);assert(cyd_pager_move(r,1));bounds(r);assert(!cyd_pager_move(r,1));cyd_pager_state(r,&state);assert(state.page==3&&!state.next);assert(cyd_pager_move(r,-1));bounds(r);lv_obj_delete(r);}
+ if(test==1){lv_obj_t *r=root(true,180);for(unsigned i=0;i<8;i++)button(r,i,true);cyd_pager_attach(r);cyd_nav_state_t s;cyd_pager_state(r,&s);assert(s.pages==3);for(unsigned i=0;i<3;i++){bounds(r);if(i<2)assert(cyd_pager_move(r,1));}lv_obj_delete(r);}
+ if(test==2){lv_obj_t *r=root(false,120);lv_obj_t *l=lv_label_create(r);lv_obj_set_width(l,LV_PCT(100));char text[2048]="";for(unsigned i=0;i<40;i++)strcat(text,"Line with UTF-8 café\n");lv_label_set_text(l,text);lv_obj_t *last=button(r,0,false);cyd_pager_attach(r);cyd_nav_state_t s;cyd_pager_state(r,&s);assert(s.pages>5);unsigned pages=s.pages;int previous_y=1;for(unsigned i=0;i<pages;i++){bounds(r);if(!lv_obj_has_flag(lv_obj_get_parent(l),LV_OBJ_FLAG_HIDDEN)){int y=lv_obj_get_y(l);assert(y<previous_y);previous_y=y;}if(i+1<pages)assert(cyd_pager_move(r,1));}assert(!lv_obj_has_flag(last,LV_OBJ_FLAG_HIDDEN));assert(!strcmp(lv_label_get_text(l),text));lv_label_set_text(l,"Short");cyd_pager_refresh(r);bounds(r);cyd_pager_state(r,&s);assert(s.pages==1&&s.page==1);cyd_pager_reset(r);assert(lv_obj_get_parent(l)==r&&lv_obj_get_child_count(r)==2);lv_obj_set_flex_flow(r,LV_FLEX_FLOW_COLUMN);lv_obj_set_height(r,200);cyd_pager_attach(r);bounds(r);lv_obj_delete(r);}
+ if(test==3){for(unsigned pass=0;pass<100;pass++){lv_obj_t *r=root(false,100);lv_obj_t *l=lv_label_create(r);lv_obj_set_width(l,LV_PCT(100));lv_label_set_text(l,"one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten");button(r,0,false);cyd_pager_attach(r);assert(cyd_pager_move(r,1));lv_obj_delete(r);}}
+ lv_deinit();puts("PASS paged layout / input / text / lifecycle");return 0;}

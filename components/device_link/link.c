@@ -3,7 +3,7 @@
 #include <string.h>
 #define HEADER 18
 #define RAW_MAX (HEADER + CYD_LINK_PAYLOAD + 4)
-enum { HELLO = 1, HELLO_ACK = 2, PING = 3, PONG = 4 };
+enum { HELLO = 1, HELLO_ACK = 2, PING = 3, PONG = 4, STATUS = 5, CALL = 6, REPLY = 7 };
 _Static_assert(sizeof(cyd_link_t) <= 8192, "Link engine native quota");
 static uint32_t crc(const uint8_t *p, size_t n) {
     uint32_t c = ~0u;
@@ -98,6 +98,10 @@ static void deliver(cyd_link_t *s) {
 }
 static void lost(cyd_link_t *s, cyd_link_result_t why) {
     s->ready = false; /* Previously queued success results belong to the old peer session. */
+    s->peer_status_valid = false;
+    s->request_head = s->request_count = 0;
+    s->request_sequence = 0;
+    memset(&s->peer_status, 0, sizeof(s->peer_status));
     for (unsigned i = 0; i < s->event_count; i++) {
         cyd_link_event_t *e = &s->events[(s->event_head + i) % CYD_LINK_WINDOW];
         if (e->result == CYD_LINK_OK) {
@@ -138,7 +142,7 @@ void cyd_link_tick(cyd_link_t *s, uint64_t now) {
     }
     deliver(s);
     uint8_t caps[4];
-    put32(caps, CYD_LINK_DIAGNOSTICS);
+    put32(caps, CYD_LINK_CAPABILITIES);
     if (now >= s->next_hello && emit(s, HELLO, 0, caps, 4))
         s->next_hello = now + (s->ready ? 1000 : 250);
 }
@@ -164,13 +168,16 @@ static void receive(cyd_link_t *s, const uint8_t *r, size_t n) {
                 s->peer_resets++;
                 lost(s, CYD_LINK_PEER_RESET);
             }
+            s->peer_status_sequence = 0;
             s->peer_boot = boot;
             s->next_hello = s->now;
         }
-        s->peer_capabilities = get32(r + HEADER) & CYD_LINK_DIAGNOSTICS;
+        s->peer_capabilities = get32(r + HEADER) & CYD_LINK_CAPABILITIES;
+        if (!(s->peer_capabilities & CYD_LINK_STATUS))
+            s->peer_status_valid = false;
         uint8_t echo[12];
         put64(echo, boot);
-        put32(echo + 8, CYD_LINK_DIAGNOSTICS);
+        put32(echo + 8, CYD_LINK_CAPABILITIES);
         emit(s, HELLO_ACK, 0, echo, 12);
         return;
     }
@@ -186,16 +193,67 @@ static void receive(cyd_link_t *s, const uint8_t *r, size_t n) {
                 s->peer_resets++;
                 lost(s, CYD_LINK_PEER_RESET);
             }
+            s->peer_status_sequence = 0;
             s->peer_boot = boot;
             s->next_hello = s->now;
         }
-        s->peer_capabilities = get32(r + HEADER + 8) & CYD_LINK_DIAGNOSTICS;
+        s->peer_capabilities = get32(r + HEADER + 8) & CYD_LINK_CAPABILITIES;
+        if (!(s->peer_capabilities & CYD_LINK_STATUS))
+            s->peer_status_valid = false;
         s->last_peer = s->now;
         s->ready = true;
         return;
     }
     if (boot != s->peer_boot || !s->ready)
         return;
+    if (kind == STATUS) {
+        const uint8_t *p = r + HEADER;
+        if (!(s->peer_capabilities & CYD_LINK_STATUS) || size != 56 || !id ||
+            get64(p) != s->boot || p[8] != 1 || (p[9] & ~3u) || p[10] || p[11])
+            goto bad;
+        /* A bounded printable version, terminated and canonically zero-padded. */
+        bool ended = false;
+        for (unsigned i = 24; i < 56; i++) {
+            if (!p[i])
+                ended = true;
+            else if (ended || p[i] < 33 || p[i] > 126)
+                goto bad;
+        }
+        if (!ended || !p[24])
+            goto bad;
+        if (id <= s->peer_status_sequence)
+            return;
+        s->peer_status = (cyd_link_status_t){
+            .uptime_ms = get64(p + 12), .free_heap = get32(p + 20),
+            .sd_ready = (p[9] & 1) != 0, .network_address = (p[9] & 2) != 0};
+        memcpy(s->peer_status.version, p + 24, 32);
+        s->peer_status_at = s->now;
+        s->peer_status_sequence = id;
+        s->peer_status_valid = true;
+        return;
+    }
+    if (kind == CALL || kind == REPLY) {
+        if (!(s->peer_capabilities & CYD_LINK_RPC) || !id || size < 8 ||
+            get64(r + HEADER) != s->boot) goto bad;
+        if (kind == CALL) {
+            if (id <= s->request_sequence) return;
+            if (s->request_count == 2) { s->dropped_frames++; return; }
+            cyd_link_event_t *e = &s->requests[(s->request_head + s->request_count) % 2];
+            *e = (cyd_link_event_t){.id=id, .size=size-8};
+            memcpy(e->data, r+HEADER+8, size-8);
+            s->request_count++; s->request_sequence=id;
+            return;
+        }
+        for (unsigned i=0;i<CYD_LINK_WINDOW;i++) {
+            cyd_link_pending_t *p=&s->pending[i];
+            if (p->used && p->rpc && !p->complete && p->id==id) {
+                p->complete=true;
+                p->event=(cyd_link_event_t){.id=id,.result=CYD_LINK_OK,.size=size-8};
+                memcpy(p->event.data,r+HEADER+8,size-8);deliver(s);return;
+            }
+        }
+        return;
+    }
     if (kind == PING) {
         if (!id)
             goto bad;
@@ -207,7 +265,7 @@ static void receive(cyd_link_t *s, const uint8_t *r, size_t n) {
             goto bad;
         for (unsigned i = 0; i < CYD_LINK_WINDOW; i++) {
             cyd_link_pending_t *p = &s->pending[i];
-            if (p->used && !p->complete && p->id == id) {
+            if (p->used && !p->rpc && !p->complete && p->id == id) {
                 p->complete = true;
                 p->event = (cyd_link_event_t){.id = id, .result = CYD_LINK_OK, .size = size};
                 memcpy(p->event.data, r + HEADER, size);
@@ -307,4 +365,60 @@ bool cyd_link_pop(cyd_link_t *s, cyd_link_event_t *out) {
     s->event_count--;
     deliver(s);
     return true;
+}
+bool cyd_link_send_status(cyd_link_t *s, const cyd_link_status_t *status) {
+    if (!s || !status || !s->ready || !(s->peer_capabilities & CYD_LINK_STATUS) ||
+        s->status_sequence == UINT32_MAX)
+        return false;
+    size_t n = 0;
+    while (n < sizeof(status->version) && status->version[n]) {
+        unsigned char c = status->version[n++];
+        if (c < 33 || c > 126)
+            return false;
+    }
+    if (!n || n == sizeof(status->version))
+        return false;
+    uint8_t body[56] = {0};
+    put64(body, s->peer_boot);
+    body[8] = 1;
+    body[9] = (status->sd_ready ? 1 : 0) | (status->network_address ? 2 : 0);
+    put64(body + 12, status->uptime_ms);
+    put32(body + 20, status->free_heap);
+    memcpy(body + 24, status->version, n);
+    if (!emit(s, STATUS, s->status_sequence + 1, body, sizeof(body)))
+        return false;
+    s->status_sequence++;
+    return true;
+}
+bool cyd_link_get_status(const cyd_link_t *s, cyd_link_status_t *out, uint32_t *age_ms) {
+    if (!s || !out || !s->ready || !s->peer_status_valid ||
+        s->now - s->peer_status_at >= 3000)
+        return false;
+    *out = s->peer_status;
+    if (age_ms)
+        *age_ms = (uint32_t)(s->now - s->peer_status_at);
+    return true;
+}
+
+uint32_t cyd_link_request(cyd_link_t *s,const void *data,size_t n,unsigned timeout) {
+    if (!s->ready || !(s->peer_capabilities & CYD_LINK_RPC) || n>CYD_LINK_PAYLOAD-8 ||
+        (n&&!data) || timeout<100 || timeout>30000 || s->next_id==UINT32_MAX) return 0;
+    for(unsigned i=0;i<CYD_LINK_WINDOW;i++) {
+        cyd_link_pending_t *p=&s->pending[i]; if(p->used)continue;
+        uint8_t body[CYD_LINK_PAYLOAD];put64(body,s->peer_boot);
+        if(n)memcpy(body+8,data,n);
+        uint32_t id=s->next_id+1;
+        if(!emit(s,CALL,id,body,n+8))return 0;
+        s->next_id=id;*p=(cyd_link_pending_t){.used=true,.rpc=true,.id=id,.deadline=s->now+timeout};return id;
+    }
+    return 0;
+}
+bool cyd_link_receive(cyd_link_t *s,cyd_link_event_t *out) {
+    if(!s->request_count)return false;
+    *out=s->requests[s->request_head];s->request_head=(s->request_head+1)%2;s->request_count--;return true;
+}
+bool cyd_link_reply(cyd_link_t *s,uint64_t peer,uint32_t id,const void *data,size_t n) {
+    if(!s->ready || s->peer_boot!=peer || !id || id>s->request_sequence || n>CYD_LINK_PAYLOAD-8 || (n&&!data))return false;
+    uint8_t body[CYD_LINK_PAYLOAD];put64(body,peer);if(n)memcpy(body+8,data,n);
+    return emit(s,REPLY,id,body,n+8);
 }

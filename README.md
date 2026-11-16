@@ -1,16 +1,27 @@
 # CYD OS — wireless Lua application development
 
+Current source: **CYD-OS 0.5.1 paired tablet** — native apps, a C5 device/wireless
+manager, shared drive access, S3 Local logs and coordinated update packages.
+The CrowPanel S3 now runs the 0.5.1 SD recovery image: its CMD59 retry succeeded,
+storage initialized and startup confirmed, with no resets in a two-minute capture.
+The C5 remains on its startup-confirmed 0.5.0 fix3 firmware. Its immediate resets
+when powered already wired to the S3 remain undiagnosed; attaching after startup
+was reported to work. Native-app timing corrections are included, but app and
+paired-update acceptance after this recovery still need physical checks.
+[Release details](docs/PAIRED-0.5.1.md) · [SD recovery evidence](docs/S3-SD-CRC-RECOVERY.md).
+[Architecture, upgrade and limits](docs/PAIRED-TABLET-0.5.md).
+
+Build both roles with `scripts/build_paired.py`; `versions/paired.txt` is their
+common version. Initial 0.4-to-0.5 migration needs one board-specific OTA each;
+subsequent paired releases use one `.cydos` package through C5 to the S3 coordinator.
+Standalone 0.4 board defaults remain available; [historical release lines](docs/BOARD-RELEASE-LINES.md).
+
 **Continuing in a new chat?** Read [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) and
 the [complete project reference](docs/PROJECT-REFERENCE.md) first.
 
 **Downloads:** [Firmware, setup ZIPs and examples](releases/README.md).
 
-This experimental branch adds an opt-in S3/C5 **diagnostic UART link**.
-Read [the paired-device architecture](docs/PAIRED-ARCHITECTURE.md). Network/app
-offload and persistent background services are not implemented by this increment;
-existing release downloads do not include it. UART is disabled by default.
-
-Latest prepared platform: **0.4.0**, with app-owned HTTP/TLS/MQTT, timers, expanded UI,
+The compatible 0.4 Lua API supplies app-owned HTTP/TLS/MQTT, timers, expanded UI,
 JSON/resources, scoped NVS credentials and package permission inspection.
 Read [the Lua API](docs/LUA-API-0.4.md), [security/quotas](docs/SECURITY-0.4.md)
 and [upgrade/rollback instructions](docs/UPGRADE-0.4.md).
@@ -20,13 +31,11 @@ and **RockBase NM-CYD-C5 V1.0 with ST7789**.
 Edit an application on Linux, upload a `.cydapp` over Wi-Fi, and start a new Lua
 context without flashing or rebooting the ESP32.
 
-**The build environment has no physical hardware access.** The manufacturer’s V1.3 schematic
-and V1.1–V1.3 examples were checked. Your physical revision is still unconfirmed;
-board initialization is disabled by default until you confirm it in menuconfig.
-CrowPanel V1.0 and C5 panels other than ST7789 are not supported by these profiles.
-The user has confirmed C5 boot, corrected touch mapping, Wi-Fi, SD uploads and
-wireless Lua app updates. The user has also verified the connection manager and CYDAP from an iPad.
-The 0.3.x OS features and 0.4.0 platform additions have software validation; hardware acceptance is pending.
+The user's V1.3 CrowPanel and C5 have confirmed display/touch operation; the
+three-wire link and C5 0.4.3c startup confirmation were observed in prior work.
+**Hardware acceptance is partial**, as described above. Generic source builds retain
+board-confirmation guards. CrowPanel V1.0 and other C5 display profiles are not
+supported. Keep settings, calibration and SD data; use normal application OTA.
 
 ## Included
 
@@ -51,8 +60,8 @@ The 0.3.x OS features and 0.4.0 platform additions have software validation; har
 - Staging/commit installation: incomplete staging is removed at boot; previous
   revisions and application data are retained. Apps do not auto-run at boot.
 
-This is an incremental MVP. The acceptance milestone still requires the
-[physical test procedure](docs/TESTING.md). It is not a hardware-validated release.
+This is an incremental MVP. Complete acceptance still requires the
+[physical test procedure](docs/TESTING.md), including the remaining paired checks.
 
 ## Build and first flash on Linux
 

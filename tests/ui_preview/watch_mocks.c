@@ -5,7 +5,7 @@
 #include "cyd_access.h"
 #include "cyd_projects.h"
 cyd_device_status_t preview_device = {
-    .brightness = 80, .clock_valid = true, .clock = "2026-11-14 10:09", .message = "Ready"};
+    .brightness = 80, .effective_brightness = 80, .dim_percent = 10, .clock_valid = true, .clock = "2026-11-14 10:09", .message = "Ready"};
 esp_err_t cyd_runtime_stop(void) {
     return 0;
 }
@@ -171,4 +171,14 @@ esp_err_t cyd_board_set_brightness(unsigned p) {
 void cyd_board_touch(lv_indev_t *i, lv_indev_data_t *d) {
     (void)i;
     d->state = LV_INDEV_STATE_RELEASED;
+}
+
+esp_err_t cyd_device_preferences(unsigned s, unsigned p, bool h) {
+    preview_device.dim_seconds=s; preview_device.dim_percent=p; preview_device.clock_12h=h; return ESP_OK;
+}
+
+#include "cyd_peer.h"
+void cyd_peer_snapshot(cyd_peer_info_t *out) {
+    *out = (cyd_peer_info_t){.role = CYD_LINK_COMPANION, .echo_result = -1,
+        .message = "Local operation; board link disabled pending qualified wiring"};
 }

@@ -1,3 +1,10 @@
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
+#if defined(CONFIG_CYD_PAIRED_SYSTEM) && defined(CONFIG_IDF_TARGET_ESP32S3)
+#include "cyd_pair_io.h"
+cyd_io_t cyd_services_esp_io(void) {return cyd_pair_io();}
+#else
 #include "cyd_services.h"
 #include "esp_crt_bundle.h"
 #include "esp_tls.h"
@@ -134,3 +141,5 @@ cyd_io_t cyd_services_esp_io(void) {
     return (cyd_io_t){open_transport, connect_transport, read_transport, write_transport,
                       close_transport};
 }
+
+#endif

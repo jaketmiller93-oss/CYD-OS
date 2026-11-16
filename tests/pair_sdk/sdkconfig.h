@@ -1,0 +1,7 @@
+#pragma once
+#define CONFIG_CYD_PAIRED_SYSTEM 1
+#ifdef TEST_PAIR_HOST
+#define CONFIG_IDF_TARGET_ESP32S3 1
+#else
+#define CONFIG_IDF_TARGET_ESP32C5 1
+#endif

@@ -3,7 +3,16 @@
 Artifacts are kept in the repository for access through the GitHub connection.
 In GitHub’s file view, use **Download raw file** for binary and ZIP downloads.
 
-## 0.4.0 prepared upgrade — hardware acceptance pending
+## Current 0.5.1 paired tablet
+
+[0.5.1 downloads and installation notes](v0.5.1) contain the refreshed paired
+container, both raw recovery applications, public source, checksums and evidence.
+The S3 SD recovery image booted and confirmed on hardware; C5 remains on the
+user-confirmed [0.5.0 startup fix3](v0.5.0/C5-Startup-Fix-3). C5 0.5.1 and complete
+paired/native-app physical acceptance remain pending. See the current release
+notes before using older images or a USB flasher.
+
+## Historical 0.4.0 prepared upgrade
 
 [0.4.0 downloads](v0.4.0) accompany the reusable Lua platform source. These have
 host validation and real firmware builds; they have **not been tested on hardware**.

@@ -14,14 +14,13 @@
 #define CYD_MAX_FILES 48
 #define CYD_MAX_PATH 96
 #define CYD_MAX_SCRIPT (64 * 1024)
-#define CYD_VERSION "0.4.0"
 const char *cyd_system_version(void);
 bool cyd_maintenance_active(void);
 bool cyd_maintenance_begin(void);
 void cyd_maintenance_end(void);
 typedef struct {
     char id[65], name[65], version[33], entry[CYD_MAX_PATH];
-    bool storage, network, mqtt, credentials;
+    bool storage, network, mqtt, credentials, documents;
 } cyd_manifest_t;
 typedef struct {
     char name[CYD_MAX_PATH];
@@ -78,3 +77,4 @@ esp_err_t cyd_network_init(void);
 void cyd_network_address(char *, size_t);
 bool cyd_network_connected(void);
 esp_err_t cyd_web_start(void);
+esp_err_t cyd_web_prepare(void);

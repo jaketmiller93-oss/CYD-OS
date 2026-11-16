@@ -9,6 +9,8 @@
 #define CYD_HEALTH_UI 8u
 #define CYD_HEALTH_NETWORK 16u
 #define CYD_HEALTH_ALL 31u
+/* Local startup acceptance only; never depends on a live peer. */
+bool cyd_ota_boot_confirmed(void);
 typedef enum {
     CYD_OS_BOOTING,
     CYD_OS_IDLE,

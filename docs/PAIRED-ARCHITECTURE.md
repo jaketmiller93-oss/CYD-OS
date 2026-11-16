@@ -1,5 +1,8 @@
 # S3 application host + C5 connectivity companion
 
+Historical architecture assessment; [current 0.4.5 state](CROWPANEL-0.4.5.md)
+is authoritative for built artifacts and validation.
+
 Assessment recorded before firmware changes, based on 0.4.0 commit 9194fed.
 Inspected main boot sequence, Lua/runtime ownership, asynchronous service IO
 interface, Wi-Fi manager, web upload/OTA path, board pin usage and host tests.
@@ -42,7 +45,7 @@ manufacturer lists UART0 RX44/TX43 and UART1 RX19/TX20, but those are not indepe
 free ports: V1.3 UART1 is behind the microphone/wireless selector, and its route
 is not selected by the current SD mode. UART0 shares the USB serial bridge. The
 existing native-USB console configuration also conflicts with using GPIO19/20.
-See [the verified UART follow-up](HARDWARE.md#paired-device-uart-follow-up-2026-11-14).
+See [the current connection constraints](CROWPANEL-0.4.5.md).
 A schematic-verified link/power/recovery arrangement for the actual revision is
 still required. No GPIO guard or hardware setting is relaxed based on the URL.
 

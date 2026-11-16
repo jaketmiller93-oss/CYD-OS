@@ -1,3 +1,10 @@
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
+#if defined(CONFIG_CYD_PAIRED_SYSTEM) && defined(CONFIG_IDF_TARGET_ESP32S3)
+#include "cyd_pair.h"
+#include "pair_ops.h"
+#endif
 #include "cyd.h"
 #include "cyd_credentials.h"
 #include "nvs.h"
@@ -137,6 +144,18 @@ done:
     nvs_close(h);
     return e;
 }
+#if defined(CONFIG_CYD_PAIRED_SYSTEM) && defined(CONFIG_IDF_TARGET_ESP32S3)
+static esp_err_t remote(const char *app,const char *key,void *value,size_t *size,unsigned op) {
+ if(!cyd_safe_id(app)||!key_ok(key)||!size||*size>256)return ESP_ERR_INVALID_ARG;
+ uint8_t packet[354]={0};memcpy(packet,app,strlen(app));memcpy(packet+65,key,strlen(key));
+ size_t n=98;if(op==CYD_PAIR_CREDENTIAL_SET){memcpy(packet+98,value,*size);n+=*size;}
+ size_t got=0;esp_err_t e=cyd_pair_rpc(op,packet,n,value,op==CYD_PAIR_CREDENTIAL_GET?*size:0,&got);
+ wipe(packet,sizeof(packet));if(!e&&op==CYD_PAIR_CREDENTIAL_GET)*size=got;return e;
+}
+esp_err_t cyd_credentials_get(const char *a,const char *k,void *v,size_t *n){return remote(a,k,v,n,CYD_PAIR_CREDENTIAL_GET);}
+esp_err_t cyd_credentials_set(const char *a,const char *k,const void *v,size_t n){return remote(a,k,(void *)v,&n,CYD_PAIR_CREDENTIAL_SET);}
+esp_err_t cyd_credentials_delete(const char *a,const char *k){size_t n=0;return remote(a,k,NULL,&n,CYD_PAIR_CREDENTIAL_DELETE);}
+#else
 esp_err_t cyd_credentials_get(const char *a, const char *k, void *v, size_t *n) {
     return operation(a, k, v, n, 0);
 }
@@ -147,3 +166,5 @@ esp_err_t cyd_credentials_delete(const char *a, const char *k) {
     size_t n = 0;
     return operation(a, k, NULL, &n, 2);
 }
+
+#endif

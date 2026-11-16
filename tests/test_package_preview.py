@@ -19,7 +19,7 @@ class Preview(unittest.TestCase):
  def fixture(self,**changes):
   m=json.loads((ROOT/'apps/hello/manifest.json').read_text());m.update(changes);return archive([('manifest.json',json.dumps(m).encode()),('main.lua',b'print("hello")')])
  def test_new_permissions_and_existing_api_one_apps(self):
-  for permissions in [[],['storage'],['network','mqtt','credentials'],['storage','network','mqtt','credentials']]:
+  for permissions in [[],['storage'],['documents'],['storage','documents'],['network','mqtt','credentials'],['storage','network','mqtt','credentials']]:
    raw=self.fixture(permissions=permissions);rc,m=self.preview(raw);self.assertEqual(rc,0);self.assertEqual(m['permissions'],permissions);self.assertEqual(cydctl.inspect_package(raw)['permissions'],permissions)
  def test_rejects_unsupported_permissions_api_and_missing_entry(self):
   for change in [dict(permissions=['gpio']),dict(api_version=2),dict(entry_point='missing.lua'),dict(target=['esp32s3'])]:self.assertNotEqual(self.preview(self.fixture(**change))[0],0)

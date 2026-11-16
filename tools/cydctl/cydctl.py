@@ -84,8 +84,8 @@ def validate_manifest(raw):
     if not isinstance(targets, list) or not targets or any(t not in ('esp32s3', 'esp32c5') for t in targets):
         raise CydError('Invalid target list')
     permissions = m.get('permissions')
-    if not isinstance(permissions, list) or any(not isinstance(p,str) or p not in {'storage','network','mqtt','credentials'} for p in permissions):
-        raise CydError('Supported permissions: storage, network, mqtt, credentials')
+    if not isinstance(permissions, list) or any(not isinstance(p,str) or p not in {'storage','network','mqtt','credentials','documents'} for p in permissions):
+        raise CydError('Supported permissions: storage, network, mqtt, credentials, documents')
     if 'icon' in m and not safe_path(m['icon']):
         raise CydError('Invalid icon path')
     return m

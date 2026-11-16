@@ -10,6 +10,7 @@
 #define CYD_OTA_FEATURE_PERSISTENT_ACCESS 2u
 #define CYD_OTA_FEATURE_BOARD_CONFIRMED 4u
 #define CYD_OTA_REQUIRED_FEATURES 7u
+#define CYD_OTA_FEATURE_PAIRED 8u
 typedef struct {
     char magic[16];
     uint32_t format;

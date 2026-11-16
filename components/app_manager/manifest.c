@@ -97,6 +97,8 @@ esp_err_t cyd_manifest_parse(const void *data, size_t n, cyd_manifest_t *m) {
             m->mqtt = true;
         else if (!strcmp(v->valuestring, "credentials"))
             m->credentials = true;
+        else if (!strcmp(v->valuestring, "documents"))
+            m->documents = true;
         else {
             err = ESP_ERR_NOT_SUPPORTED;
             goto done;

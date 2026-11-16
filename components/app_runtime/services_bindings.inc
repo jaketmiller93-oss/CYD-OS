@@ -17,17 +17,31 @@ static void service_worker(void *arg) {
 }
 static bool services_start(app_t *a) {
     a->service_guard = xSemaphoreCreateMutex();
-    a->service_done = xSemaphoreCreateBinary();
-    a->services = calloc(1, sizeof(*a->services));
-    if (!a->service_guard || !a->service_done || !a->services)
+    a->services = heap_caps_calloc(1, sizeof(*a->services), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!a->service_guard || !a->services)
         return false;
     cyd_io_t io = cyd_services_esp_io();
     cyd_services_init(a->services, &io);
     a->services->now = esp_timer_get_time() / 1000;
+    /* Offline timers and touch are dispatched by the Lua task. They do not need
+     * a separate internal stack. Network IO retains its independent worker. */
+    if (!a->manifest.network && !a->manifest.mqtt)
+        return true;
+    a->service_done = xSemaphoreCreateBinary();
+    if (!a->service_done)
+        return false;
     if (xTaskCreate(service_worker, "app_services", 12288, a, 3, NULL) != pdPASS)
         return false;
     a->worker_started = true;
     return true;
+}
+static bool services_next(app_t *a) {
+    xSemaphoreTake(a->service_guard, portMAX_DELAY);
+    if (!a->worker_started)
+        cyd_services_tick(a->services, (uint64_t)esp_timer_get_time() / 1000);
+    bool have = cyd_services_pop(a->services, &a->delivery);
+    xSemaphoreGive(a->service_guard);
+    return have;
 }
 static void services_stop(app_t *a) {
     if (a->worker_started)
@@ -35,6 +49,8 @@ static void services_stop(app_t *a) {
     if (a->service_guard)
         xSemaphoreTake(a->service_guard, portMAX_DELAY);
     if (a->services) {
+        if (!a->worker_started)
+            cyd_services_close(a->services);
         volatile unsigned char *p = (void *)a->services;
         for (size_t i = 0; i < sizeof(*a->services); i++)
             p[i] = 0;
@@ -107,6 +123,11 @@ static int timer_new(lua_State *L, bool repeat) {
     luaL_checktype(L, 2, LUA_TFUNCTION);
     uint32_t gen;
     xSemaphoreTake(a->service_guard, portMAX_DELAY);
+    if (!a->worker_started) {
+        uint64_t now = (uint64_t)esp_timer_get_time() / 1000;
+        if (now > a->services->now)
+            cyd_services_tick(a->services, now);
+    }
     int slot = cyd_services_timer(a->services, ms, repeat, &gen);
     xSemaphoreGive(a->service_guard);
     if (slot < 0)

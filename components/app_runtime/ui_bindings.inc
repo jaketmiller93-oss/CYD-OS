@@ -197,6 +197,10 @@ static int add_widget_kind(lua_State *L, unsigned kind) {
     if (*layout && strcmp(layout, "column") && strcmp(layout, "row"))
         return luaL_error(L, "Unknown layout");
     bool scroll = field_bool(L, 2, "scroll"), masked = field_bool(L, 2, "masked");
+    int padding = field_int(L,2,"padding",-1,-1,24),
+        border = field_int(L,2,"border",-1,-1,4),
+        radius = field_int(L,2,"radius",-1,-1,32);
+    option_field(L,2,"height");bool explicit_height=!lua_isnil(L,-1);lua_pop(L,1);
     widget_t *w = &a->widgets[slot];
     for (unsigned i = 0; i < 3; i++) {
         if (w->refs[i] != 0 && w->refs[i] != LUA_NOREF)
@@ -232,11 +236,15 @@ static int add_widget_kind(lua_State *L, unsigned kind) {
         lv_obj_set_size(o, width, height);
     else {
         lv_obj_set_width(o, width);
+        if (explicit_height) lv_obj_set_height(o,height);
         lv_label_set_long_mode(o, LV_LABEL_LONG_WRAP);
         lv_label_set_text(o, text);
     }
     lv_obj_set_style_text_color(o, lv_color_hex(color), 0);
     lv_obj_set_style_bg_color(o, lv_color_hex(bg), 0);
+    if(padding>=0)lv_obj_set_style_pad_all(o,padding,0);
+    if(border>=0)lv_obj_set_style_border_width(o,border,0);
+    if(radius>=0)lv_obj_set_style_radius(o,radius,0);
     const lv_font_t *f = font == 20   ? &lv_font_montserrat_20
                          : font == 28 ? &lv_font_montserrat_28
                                       : &lv_font_montserrat_14;
@@ -435,8 +443,31 @@ static void ui_metatable(lua_State *L) {
                               {"set_background", set_background},
                               {"delete", delete_widget},
                               {NULL, NULL}};
-    luaL_setfuncs(L, funcs, 0);
+    for (const luaL_Reg *fn = funcs; fn->name; fn++)
+        ui_table_fn(L, fn->name, fn->func);
     lua_setfield(L, -2, "__index");
     lua_pop(L, 1);
 }
 static void bind_ui_api(lua_State *L) { (void)L; }
+static int text_lines(lua_State *L) {
+    const char *text=bounded_string(L,1,16384);
+    size_t size=strlen(text),at=0;
+    if(!utf8_valid((const unsigned char *)text,size))return luaL_error(L,"Invalid UTF-8 text");
+    int width=(int)luaL_checkinteger(L,2);
+    if(width<16||width>800)return luaL_error(L,"Text width must be 16-800");
+    int pixels=(int)luaL_optinteger(L,3,14);
+    if(pixels!=14&&pixels!=20&&pixels!=28)return luaL_error(L,"Fonts: 14,20,28 only");
+    const lv_font_t *font=pixels==20?&lv_font_montserrat_20:pixels==28?&lv_font_montserrat_28:&lv_font_montserrat_14;
+    lua_newtable(L);unsigned count=0;
+    while(at<size && count<512){
+        cyd_ui_lock();
+        uint32_t n=_lv_text_get_next_line(text+at,font,0,width,NULL,LV_TEXT_FLAG_NONE);
+        cyd_ui_unlock();
+        if(!n) {unsigned char c=text[at];n=c<128?1:c<224?2:c<240?3:4;}
+        if(n>size-at)n=(uint32_t)(size-at);
+        size_t end=at+n;while(end>at&&(text[end-1]=='\n'||text[end-1]=='\r'))--end;
+        lua_pushlstring(L,text+at,end-at);lua_rawseti(L,-2,++count);at+=n;
+    }
+    if(!count){lua_pushliteral(L,"");lua_rawseti(L,-2,1);}
+    lua_pushboolean(L,at<size);return 2;
+}

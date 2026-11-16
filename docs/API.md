@@ -37,8 +37,10 @@ Required manifest fields:
 `package_id` is a lowercase reverse-domain string up to 64 bytes. Name is up to
 64 UTF-8 bytes, version up to 32. Version is a display string, not a sortable
 semantic-version constraint. The current device must appear in `target`.
-Permissions are `storage`, `network`, `mqtt` and `credentials` (an empty list is allowed). Unknown
+Permissions are `storage`, `network`, `mqtt`, `credentials` and `documents` (an empty list is allowed). Unknown
 permissions fail installation. Duplicate manifest fields fail validation.
+The `documents` permission requires C5 0.4.4c or S3 0.4.3s and grants only the
+shared Documents area; see [OFFLINE-ESSENTIALS.md](OFFLINE-ESSENTIALS.md).
 An optional `icon` is a safe package-relative path; rendering custom icons is a
 future feature. Additional metadata fields are retained but unused.
 

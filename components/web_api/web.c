@@ -1,14 +1,24 @@
 #include "cyd.h"
+#include "cyd_peer.h"
 #include "cyd_access.h"
 #include "cyd_device.h"
 #include "cyd_network.h"
 #include "cyd_ota.h"
 #include "cyd_projects.h"
-#include "cyd_peer.h"
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
+#include "startup.h"
 #include "esp_psram.h"
 #include "sdkconfig.h"
+#ifdef CONFIG_CYD_PAIRED_SYSTEM
+#include "cyd_pair.h"
+#else
+#define CYD_PAIR_MANAGER 0
+#endif
+#if CYD_PAIR_MANAGER
+#include "pair_ops.h"
+#include "pair_bundle.h"
+#endif
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,7 +85,6 @@ static esp_err_t status(httpd_req_t *r) {
     char ip[32];
     cyd_network_address(ip, sizeof(ip));
     cJSON *o = cJSON_CreateObject();
-    cJSON_AddItemToObject(o, "peer_link", cyd_peer_status());
     cJSON_AddStringToObject(o, "model", cyd_board_model());
     cJSON_AddStringToObject(o, "firmware", cyd_system_version());
     cJSON_AddStringToObject(o, "target", CONFIG_IDF_TARGET);
@@ -87,8 +96,15 @@ static esp_err_t status(httpd_req_t *r) {
     cJSON_AddNumberToObject(o, "psram_total", esp_psram_get_size());
     cJSON_AddNumberToObject(o, "psram_free", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     cJSON_AddNumberToObject(o, "internal_heap_free", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+    cJSON_AddNumberToObject(o, "internal_largest_block",
+                          heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
     cJSON_AddNumberToObject(o, "storage_free", cyd_storage_free());
     cJSON_AddItemToObject(o, "app", cyd_runtime_status());
+    cJSON_AddItemToObject(o, "peer_link", cyd_peer_status());
+#if CYD_PAIR_MANAGER
+    o=cyd_pair_dashboard_merge(o,cyd_pair_json(CYD_PAIR_STATUS,NULL),cyd_pair_status());
+    if(!o)return json(r,NULL);
+#endif
     cyd_net_status_t ns;
     cyd_network_snapshot(&ns);
     cJSON *net = cJSON_CreateObject();
@@ -117,7 +133,11 @@ static esp_err_t versions(httpd_req_t *r) {
 static esp_err_t logs_handler(httpd_req_t *r) {
     if (!auth(r))
         return ESP_OK;
+#if CYD_PAIR_MANAGER
+    return json(r,cyd_pair_logs_merge(cyd_logs(),cyd_pair_json(CYD_PAIR_LOGS,NULL),32));
+#else
     return json(r, cyd_logs());
+#endif
 }
 static esp_err_t package_request(httpd_req_t *r, bool inspect) {
     if (!auth(r))
@@ -424,20 +444,11 @@ static esp_err_t device_post(httpd_req_t *r) {
     httpd_resp_set_status(r, "202 Accepted");
     return json(r, device_json());
 }
+#if CYD_PAIR_MANAGER
+#include "pair_gateway.inc"
+#endif
 esp_err_t cyd_web_start(void) {
-    if (!cyd_access_ready())
-        return ESP_ERR_INVALID_ARG;
-    httpd_config_t c = HTTPD_DEFAULT_CONFIG();
-    c.stack_size = 16384;
-    c.max_uri_handlers = 24;
-    c.recv_wait_timeout = 10;
-    c.send_wait_timeout = 10;
-    c.lru_purge_enable = true;
-    httpd_handle_t server;
-    esp_err_t e = httpd_start(&server, &c);
-    if (e)
-        return e;
-    const httpd_uri_t routes[] = {
+    httpd_uri_t routes[] = {
         {.uri = "/", .method = HTTP_GET, .handler = index_page},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status},
         {.uri = "/api/versions", .method = HTTP_GET, .handler = versions},
@@ -456,13 +467,21 @@ esp_err_t cyd_web_start(void) {
         {.uri = "/api/os/update", .method = HTTP_POST, .handler = os_upload},
         {.uri = "/api/os/reboot", .method = HTTP_POST, .handler = os_reboot},
         {.uri = "/api/os/cancel", .method = HTTP_POST, .handler = os_cancel},
-        {.uri = "/api/os/rollback", .method = HTTP_POST, .handler = os_rollback}};
+        {.uri = "/api/os/rollback", .method = HTTP_POST, .handler = os_rollback},
+#if CYD_PAIR_MANAGER
+        {.uri = "/api/recovery/os", .method = HTTP_GET, .handler = os_status},
+        {.uri = "/api/recovery/os/update", .method = HTTP_POST, .handler = os_upload},
+        {.uri = "/api/recovery/os/reboot", .method = HTTP_POST, .handler = os_reboot},
+        {.uri = "/api/recovery/os/cancel", .method = HTTP_POST, .handler = os_cancel},
+#endif
+    };
+#if CYD_PAIR_MANAGER
     for (unsigned i = 0; i < sizeof(routes) / sizeof(*routes); i++) {
-        e = httpd_register_uri_handler(server, &routes[i]);
-        if (e) {
-            httpd_stop(server);
-            return e;
-        }
+        httpd_uri_t *route = &routes[i];
+        if(!strcmp(route->uri,"/api/versions")||!strcmp(route->uri,"/api/packages")||!strcmp(route->uri,"/api/packages/inspect")||
+           !strcmp(route->uri,"/api/run")||!strcmp(route->uri,"/api/stop")||!strcmp(route->uri,"/api/download")||!strcmp(route->uri,"/api/projects")||
+           !strcmp(route->uri,"/api/os")||!strcmp(route->uri,"/api/os/update")||!strcmp(route->uri,"/api/os/reboot")||!strcmp(route->uri,"/api/os/cancel")||!strcmp(route->uri,"/api/os/rollback"))route->handler=pair_gateway;
     }
-    return ESP_OK;
+#endif
+    return cyd_web_register(routes, sizeof(routes) / sizeof(*routes));
 }

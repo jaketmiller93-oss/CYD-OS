@@ -73,6 +73,11 @@ static struct {
     char name[32];
 } tasks[16];
 static unsigned task_count;
+bool host_has_task(const char *name) {
+    for (unsigned i = 0; i < task_count; i++)
+        if (!strcmp(tasks[i].name, name)) return true;
+    return false;
+}
 void host_run_task(const char *name) {
     for (unsigned i = 0; i < task_count; i++)
         if (!strcmp(tasks[i].name, name))

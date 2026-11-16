@@ -10,7 +10,7 @@ OUT=ROOT/"dist"
 BUNDLE=OUT/'cyd-os-update'
 
 def source_files():
-    roots=['components','boards','main','docs','tests','tools','scripts','apps']
+    roots=['components','boards','main','docs','tests','tools','scripts','apps','versions']
     for root in roots:
         for p in sorted((ROOT/root).rglob('*')):
             if p.is_file() and not any(part in {'__pycache__','.git','.venv','node_modules'} for part in p.relative_to(ROOT).parts) and p.suffix not in {'.pyc','.ppm','.so'}:

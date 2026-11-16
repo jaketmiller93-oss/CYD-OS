@@ -27,7 +27,8 @@ typedef enum {
     CALIBRATED,
     RESET_DISPLAY,
     CLOCK,
-    OFFSET
+    OFFSET,
+    PREFERENCES
 } device_job_kind_t;
 typedef struct {
     device_job_kind_t kind;
@@ -35,11 +36,24 @@ typedef struct {
     bool save;
     int64_t epoch;
     float matrix[6];
+    unsigned dim_seconds, dim_percent;
+    bool clock_12h;
 } device_job_t;
 static device_config_t config, saved, defaults;
 static SemaphoreHandle_t guard;
 static QueueHandle_t jobs;
-static nvs_handle_t store;
+static nvs_handle_t store, preference_store;
+typedef struct { uint32_t format, dim_seconds, dim_percent, clock_12h; } preferences_t;
+static preferences_t preferences;
+static uint32_t last_activity, last_touch, touch_presses;
+static int touch_rx, touch_ry, touch_x, touch_y;
+static bool touch_down, wake_gesture;
+static unsigned effective_brightness;
+static bool preferences_valid(const preferences_t *p) {
+    return p->format == 1 && (p->dim_seconds == 0 || p->dim_seconds == 30 ||
+        p->dim_seconds == 60 || p->dim_seconds == 120 || p->dim_seconds == 300) &&
+        (p->dim_percent == 10 || p->dim_percent == 25 || p->dim_percent == 50) && p->clock_12h <= 1;
+}
 static esp_err_t (*set_backlight)(unsigned), (*set_rotation)(unsigned);
 static unsigned native_w, native_h;
 static cyd_display_mode_t mode;
@@ -86,6 +100,13 @@ static esp_err_t post(const device_job_t *j) {
     if (!jobs)
         return ESP_ERR_INVALID_STATE;
     return xQueueSend(jobs, j, pdMS_TO_TICKS(30)) == pdTRUE ? ESP_OK : ESP_ERR_TIMEOUT;
+}
+esp_err_t cyd_device_preferences(unsigned seconds, unsigned percent, bool clock_12h) {
+    preferences_t p = {1, seconds, percent, clock_12h};
+    if (!preferences_valid(&p) || cyd_maintenance_active()) return ESP_ERR_INVALID_ARG;
+    device_job_t j = {.kind = PREFERENCES, .dim_seconds = seconds,
+        .dim_percent = percent, .clock_12h = clock_12h};
+    return post(&j);
 }
 esp_err_t cyd_device_brightness(unsigned p, bool save) {
     if (p < 10 || p > 100 || cyd_maintenance_active())
@@ -146,6 +167,16 @@ void cyd_device_snapshot(cyd_device_status_t *out) {
         return;
     xSemaphoreTake(guard, portMAX_DELAY);
     out->brightness = config.brightness;
+    out->dim_seconds = preferences.dim_seconds;
+    out->dim_percent = preferences.dim_percent;
+    out->clock_12h = preferences.clock_12h;
+    out->effective_brightness = effective_brightness;
+    out->dimmed = effective_brightness < config.brightness;
+    out->touch_pressed = touch_down;
+    out->touch_raw_x = touch_rx; out->touch_raw_y = touch_ry;
+    out->touch_x = touch_x; out->touch_y = touch_y;
+    out->touch_presses = touch_presses;
+    out->touch_age_ms = now() - last_touch;
     out->rotation = config.rotation;
     out->utc_offset_minutes = config.offset;
     out->mode = mode;
@@ -168,7 +199,7 @@ void cyd_device_snapshot(cyd_device_status_t *out) {
     time_t stamp = time(NULL) + (time_t)out->utc_offset_minutes * 60;
     struct tm t;
     if (out->clock_valid && gmtime_r(&stamp, &t))
-        strftime(out->clock, sizeof(out->clock), "%Y-%m-%d %H:%M", &t);
+        strftime(out->clock, sizeof(out->clock), out->clock_12h ? "%Y-%m-%d %I:%M %p" : "%Y-%m-%d %H:%M", &t);
     else
         snprintf(out->clock, sizeof(out->clock), "Time not synchronized");
 }
@@ -179,6 +210,16 @@ bool cyd_device_touch(int rx, int ry, bool pressed, int *x, int *y) {
         return false;
     }
     xSemaphoreTake(guard, portMAX_DELAY);
+    if (pressed) {
+        if (!touch_down) {
+            touch_presses++;
+            wake_gesture = effective_brightness < config.brightness;
+        }
+        last_activity = last_touch = now();
+        touch_rx = rx; touch_ry = ry;
+    }
+    touch_down = pressed;
+    if (!pressed) wake_gesture = false;
     if (mode == CYD_DISPLAY_CALIBRATING) {
         if (pressed) {
             if (!was_pressed) {
@@ -217,7 +258,7 @@ bool cyd_device_touch(int rx, int ry, bool pressed, int *x, int *y) {
     }
     float px = config.matrix[0] * rx + config.matrix[1] * ry + config.matrix[2],
           py = config.matrix[3] * rx + config.matrix[4] * ry + config.matrix[5];
-    xSemaphoreGive(guard);
+    bool consume = wake_gesture;
     *x = (int)lroundf(px);
     *y = (int)lroundf(py);
     if (*x < 0)
@@ -228,7 +269,9 @@ bool cyd_device_touch(int rx, int ry, bool pressed, int *x, int *y) {
         *x = native_w - 1;
     if (*y >= (int)native_h)
         *y = native_h - 1;
-    return false;
+    if (pressed) { touch_x = *x; touch_y = *y; }
+    xSemaphoreGive(guard);
+    return consume;
 }
 static void release_preview(void) {
     xSemaphoreTake(guard, portMAX_DELAY);
@@ -247,8 +290,11 @@ static void restore(void) {
     xSemaphoreGive(guard);
     if (set_rotation)
         set_rotation(previous.rotation);
-    if (set_backlight)
-        set_backlight(previous.brightness);
+    if (set_backlight && !set_backlight(previous.brightness)) {
+        xSemaphoreTake(guard, portMAX_DELAY);
+        effective_brightness = previous.brightness;
+        xSemaphoreGive(guard);
+    }
     release_preview();
     note("Previous display settings restored");
 }
@@ -271,12 +317,25 @@ static void apply_job(const device_job_t *j) {
         return;
     esp_err_t e = ESP_OK;
     switch (j->kind) {
+    case PREFERENCES: {
+        preferences_t next = {1, j->dim_seconds, j->dim_percent, j->clock_12h};
+        e = nvs_set_blob(preference_store, "prefs", &next, sizeof(next));
+        if (!e) e = nvs_commit(preference_store);
+        if (!e) {
+            xSemaphoreTake(guard, portMAX_DELAY);
+            preferences = next; last_activity = now();
+            xSemaphoreGive(guard);
+            note("Preferences saved");
+        }
+        break;
+    }
     case BRIGHTNESS:
         if (set_backlight)
             e = set_backlight(j->value);
         if (!e) {
             xSemaphoreTake(guard, portMAX_DELAY);
-            config.brightness = j->value;
+            config.brightness = effective_brightness = j->value;
+            last_activity = now();
             xSemaphoreGive(guard);
             if (j->save)
                 e = persist();
@@ -352,8 +411,14 @@ static void apply_job(const device_job_t *j) {
         xSemaphoreGive(guard);
         if (set_rotation)
             e = set_rotation(0);
-        if (!e && set_backlight)
+        if (!e && set_backlight) {
             e = set_backlight(config.brightness);
+            if (!e) {
+                xSemaphoreTake(guard, portMAX_DELAY);
+                effective_brightness = config.brightness;
+                xSemaphoreGive(guard);
+            }
+        }
         if (!e)
             e = persist();
         release_preview();
@@ -384,6 +449,18 @@ static void apply_job(const device_job_t *j) {
         note("Could not apply/save the setting; previous saved values retained");
 }
 static void device_tick(void) {
+    xSemaphoreTake(guard, portMAX_DELAY);
+    unsigned desired = config.brightness;
+    if (mode == CYD_DISPLAY_NORMAL && !cyd_maintenance_active() && preferences.dim_seconds &&
+        now() - last_activity >= preferences.dim_seconds * 1000 && desired > preferences.dim_percent)
+        desired = preferences.dim_percent;
+    unsigned previous = effective_brightness;
+    xSemaphoreGive(guard);
+    if (desired != previous && set_backlight && !set_backlight(desired)) {
+        xSemaphoreTake(guard, portMAX_DELAY);
+        effective_brightness = desired;
+        xSemaphoreGive(guard);
+    }
     if (owns_maintenance && mode != CYD_DISPLAY_NORMAL && (int32_t)(now() - deadline) >= 0)
         restore();
 }
@@ -442,9 +519,29 @@ esp_err_t cyd_device_init(unsigned w, unsigned h, esp_err_t (*backlight)(unsigne
         return ESP_ERR_INVALID_STATE;
     } else
         saved = config;
+    preferences = (preferences_t){1, 0, 10, 0};
+    e = nvs_open("cyd_prefs", NVS_READWRITE, &preference_store);
+    if (e) return e;
+    preferences_t loaded;
+    n = sizeof(loaded);
+    e = nvs_get_blob(preference_store, "prefs", &loaded, &n);
+    if (!e && n == sizeof(loaded) && preferences_valid(&loaded)) preferences = loaded;
+    else if (e != ESP_ERR_NVS_NOT_FOUND) note("Preferences invalid; using defaults until saved");
+    last_activity = last_touch = now();
+    touch_down = wake_gesture = false; touch_presses = 0;
+    touch_rx = touch_ry = touch_x = touch_y = 0;
+    effective_brightness = config.brightness;
     time_t stamp = time(NULL);
     atomic_store(&clock_valid, stamp >= 1704067200 && stamp <= 4102444799LL);
     return xTaskCreate(device_worker, "device_settings", 8192, NULL, 3, NULL) == pdPASS
                ? ESP_OK
                : ESP_ERR_NO_MEM;
+}
+
+void cyd_device_adopt_clock(int64_t epoch,int offset,bool twelve_hour) {
+    if(!guard || epoch<1704067200 || epoch>4102444799LL || offset < -720 || offset > 840)return;
+    struct timeval tv={.tv_sec=(time_t)epoch,.tv_usec=0};
+    if(settimeofday(&tv,NULL))return;
+    xSemaphoreTake(guard,portMAX_DELAY);config.offset=offset;preferences.clock_12h=twelve_hour;xSemaphoreGive(guard);
+    atomic_store(&clock_valid,true);
 }

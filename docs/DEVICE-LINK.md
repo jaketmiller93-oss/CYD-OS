@@ -1,9 +1,21 @@
 # Experimental diagnostic device link
 
+First physical cable profile and enabled OTA candidates: [PAIRED-FIRST-LINK.md](PAIRED-FIRST-LINK.md)
+(S3 0.4.2s / C5 0.4.1c). Ordinary standalone builds remain disabled as described
+below. The user reports the cable connected; electrical operation is not yet verified.
+
+Later C5 capture confirms the UART peer connects, but .2c rolls back because its
+web service fails. Current C5 candidate and resource ownership changes:
+[C5-WEB-STARTUP-0.4.3c.md](C5-WEB-STARTUP-0.4.3c.md). S3 stays on its existing image.
+
 This branch adds transport/session groundwork for a paired S3/C5 system. It does
 not provide remote networking or background applications yet. Existing .cydapp
 API and OS service/storage behavior remain standalone. Architecture and remaining
 integration: [PAIRED-ARCHITECTURE.md](PAIRED-ARCHITECTURE.md).
+
+Current integration/release state: [CrowPanel 0.4.5](CROWPANEL-0.4.5.md).
+This protocol was developed in earlier experimental work and is now included
+with the latest shared settings/runtime source; the release keeps it disabled.
 
 ## Wire format and ownership
 
@@ -52,8 +64,10 @@ permission, cancellation and idempotency semantics, not reuse of diagnostic ping
   failures are counted. Full queues fail explicitly or drop diagnostic traffic;
   no dynamic growth, unrestricted tasks or native callbacks into Lua.
 
-The UART adapter owns a 2048-byte SDK receive ring, an engine, a 4096-byte task
-stack and bounded local RX/TX arrays. Driver overhead is additional. A dedicated
+The UART adapter owns a 2048-byte SDK receive ring, a bounded engine context
+allocated once explicitly in PSRAM, a 4096-byte internal task stack and bounded
+local RX/TX arrays. Context allocation/startup failures clean up; driver overhead
+is additional. Required web startup precedes this optional adapter. A dedicated
 native task uses nonblocking RX and FIFO TX, including partial writes. It holds
 only the engine mutex while updating state; no UART operation runs on the LVGL
 thread. It sends a five-byte probe every two seconds and records RTT/results.
@@ -95,4 +109,21 @@ doubles for disabled/unconfirmed/conflicting configs, allocation failures and
 partial/blocked FIFO writes. Both target roles perform real engine echo exchanges.
 No pin, cable, display/SD concurrency or physical peer has been tested.
 
-Exact results and acceptance gaps: [PAIRED-VALIDATION.md](PAIRED-VALIDATION.md).
+Current test evidence and acceptance gaps: [CrowPanel 0.4.5](CROWPANEL-0.4.5.md).
+
+## Board-health extension (0.4.1-pair.1)
+
+The original diagnostic-only framing above is retained. The new optional
+capability adds STATUS=5 with a fixed 56-byte payload and separate sequence;
+see the status layout below. Legacy capability-1 peers
+still exchange echoes. Fresh public health appears in peer_link.remote and on
+Settings > Connected boards in both target builds. This is not remote network/app execution or pairing
+security. No wiring-specific image is prepared until the connection is qualified.
+
+STATUS has a nonzero increasing per-boot sequence in the request ID and a fixed
+56-byte little-endian payload: receiver boot nonce uint64 at 0, schema=1 at 8,
+flags at 9 (SD ready bit0, network address available bit1), reserved zero bytes
+10-11, uptime uint64 at 12, free heap uint32 at 20, firmware ASCII string[32] at
+24 (NUL terminated/zero padded). Status expires after 3000ms; wrong sessions,
+out-of-order sequences, malformed values and peer restart cannot publish stale
+health. There are no credentials, network addresses or app payloads in STATUS.

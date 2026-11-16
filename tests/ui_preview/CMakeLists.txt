@@ -11,10 +11,10 @@ target_link_libraries(connection_preview PRIVATE lvgl m)
 target_include_directories(connection_preview PRIVATE ../../components/device_access/include ../../components/ota_manager/include)
 set(CJSON_ROOT "$ENV{IDF_PATH}/components/json/cJSON")
 add_executable(watch_preview watch_preview.c watch_mocks.c ../system_runtime.c
-    ../../components/ui/ui.c ../../components/ui/connections.c ../../components/ui/projects.c ../../components/ui/settings.c
+    ../../components/ui/ui.c ../../components/ui/pager.c ../../components/ui/connections.c ../../components/ui/projects.c ../../components/ui/settings.c
     ../../components/device_settings/geometry.c "${CJSON_ROOT}/cJSON.c")
 target_compile_definitions(watch_preview PRIVATE CYD_UI_PREVIEW)
-target_include_directories(watch_preview PRIVATE ../system_sdk "${CJSON_ROOT}" ../../components/ui
+target_include_directories(watch_preview PRIVATE ../../components/device_link/include ../system_sdk "${CJSON_ROOT}" ../../components/ui
     ../../components/network/include ../../components/device_access/include ../../components/ota_manager/include
     ../../components/device_settings/include ../../components/app_manager/include)
 target_link_libraries(watch_preview PRIVATE lvgl m)

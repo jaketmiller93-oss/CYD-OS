@@ -37,6 +37,10 @@ class SystemServices(unittest.TestCase):
  def test_ota_wrong_chip_cannot_erase(self):self.case('ota',9)
  def test_ota_cancel_does_not_select(self):self.case('ota',10)
  def test_ota_restart_task_failure_can_cancel(self):self.case('ota',11)
+ def test_ota_diagnostics_identify_missing_api_without_bypassing_rollback(self):self.case('ota',12)
+ def test_ota_confirmation_write_error_is_visible_and_still_rolls_back(self):self.case('ota',13)
+ def test_ota_diagnostics_distinguish_a_stale_ui_from_a_fresh_network(self):self.case('ota',14)
+ def test_ota_heartbeat_published_during_time_sample_does_not_restart_stability(self):self.case('ota',15)
  def test_display_rotation_timeout_restores_saved(self):self.case('device',0)
  def test_display_confirm_survives_restart(self):self.case('device',1)
  def test_display_failed_save_keeps_revert_timeout(self):self.case('device',2)
@@ -45,6 +49,11 @@ class SystemServices(unittest.TestCase):
  def test_calibration_timeout_restores(self):self.case('device',5)
  def test_brightness_persists_and_rejects_zero(self):self.case('device',6)
  def test_unconfirmed_orientation_cannot_be_saved_by_brightness(self):self.case('device',7)
+ def test_preferences_survive_restart_without_changing_display(self):self.case('device',9)
+ def test_idle_dim_wake_consumes_first_gesture_and_retains_touch(self):self.case('device',10)
+ def test_idle_dim_never_increases_brightness_and_can_disable(self):self.case('device',11)
+ def test_invalid_or_failed_preferences_preserve_values(self):self.case('device',12)
+ def test_maintenance_keeps_display_awake(self):self.case('device',13)
  def test_access_import_and_restart(self):self.case('access',0)
  def test_access_rotation_invalidates_old_token(self):self.case('access',1)
  def test_access_failed_rotation_preserves_working_token(self):self.case('access',2)
@@ -58,9 +67,9 @@ class SystemServices(unittest.TestCase):
  def test_catalog_invalid_names_paths_and_missing_apps(self):self.case('catalog',5)
  def test_catalog_maintenance_blocks_mutation(self):self.case('catalog',6)
  def test_catalog_bounded_folder_count(self):self.case('catalog',7)
- def policy(self,p,total=1024):
+ def policy(self,p,total=1024,chip=0x17,board=b'nm_cyd_c5'):
   lib=self.libs['ota'];fn=lib.cyd_ota_policy_validate;fn.argtypes=[C.c_void_p,C.c_size_t,C.c_size_t,C.c_uint16,C.c_char_p,C.c_char_p,C.c_void_p,C.c_size_t];fn.restype=C.c_bool
-  return fn(bytes(p),len(p),total,0x17,b'nm_cyd_c5',b'a'*64,C.create_string_buffer(160),160)
+  return fn(bytes(p),len(p),total,chip,board,b'a'*64,C.create_string_buffer(160),160)
  def prefix(self):
   p=bytearray(512);p[0]=0xe9;p[1]=3;p[3]=0x40;p[12]=0x17;p[23]=1;struct.pack_into('<I',p,28,1024);struct.pack_into('<I',p,32,0xabcd5432);p[48:54]=b'0.3.1\0';p[80:87]=b'cyd-os\0';struct.pack_into('<16sI24sIIIII65s63s',p,288,b'CYD-OS-UPDATE',1,b'nm_cyd_c5',7,1,1,1,1,b'a'*64,b'');return p
  def test_policy_valid_image(self):self.assertTrue(self.policy(self.prefix()))
@@ -90,3 +99,11 @@ class SystemServices(unittest.TestCase):
   p=self.prefix();struct.pack_into("<I",p,28,200);self.assertFalse(self.policy(p))
 
  def test_bootstrap_calibration_persisted_before_first_ota(self):self.case("device",8)
+
+ def test_ota_accepts_independent_s3_and_c5_release_suffixes(self):
+  for version,chip,board in [(b'0.4.1s',9,b'crowpanel_s3'),(b'0.4.0c',0x17,b'nm_cyd_c5')]:
+   p=self.prefix();p[48:80]=version.ljust(32,b'\0');struct.pack_into('<H',p,12,chip);p[308:332]=board.ljust(24,b'\0')
+   self.assertTrue(self.policy(p,chip=chip,board=board))
+ def test_version_suffix_does_not_override_board_validation(self):
+  p=self.prefix();p[48:80]=b'0.4.1s'.ljust(32,b'\0')
+  self.assertFalse(self.policy(p,chip=9,board=b'crowpanel_s3'))

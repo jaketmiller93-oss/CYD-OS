@@ -1,6 +1,7 @@
 /* DIS01943A V1.1--V1.3 only. See docs/HARDWARE.md for pinned manufacturer sources. */
 #include "cyd.h"
 #include "cyd_device.h"
+#include "control_boot.h"
 #include "sdkconfig.h"
 #include "esp_check.h"
 #include "driver/i2c_master.h"
@@ -17,6 +18,22 @@ static esp_lcd_panel_handle_t panel;
 static esp_lcd_touch_handle_t touch;
 static bool initialized;
 static i2c_master_dev_handle_t stc;
+static esp_err_t control_write(void *bus, uint8_t value) {
+    (void)bus;
+    return i2c_master_transmit(stc, &value, 1, 100);
+}
+static esp_err_t control_bus_reset(void *bus) {
+    return i2c_master_bus_reset((i2c_master_bus_handle_t)bus);
+}
+static void control_wait(void *bus, unsigned ms) {
+    (void)bus;
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
+static void control_retry(void *bus, uint8_t value, unsigned attempt, esp_err_t err) {
+    (void)bus;
+    ESP_LOGW("board", "STC command %u attempt %u failed (%s); recovering I2C bus",
+        (unsigned)value, attempt, esp_err_to_name(err));
+}
 unsigned cyd_board_width(void) {
     return 800;
 }
@@ -31,8 +48,10 @@ esp_err_t cyd_board_init(void) {
     ESP_LOGE("board", "Confirm DIS01943A V1.1-V1.3 in menuconfig before enabling hardware.");
     return ESP_ERR_NOT_SUPPORTED;
 #else
+    ESP_LOGI("board", "CrowPanel PSRAM detected: %u bytes", (unsigned)esp_psram_get_size());
     if (!esp_psram_is_initialized() || esp_psram_get_size() < 4 * 1024 * 1024)
         return ESP_ERR_NO_MEM;
+    ESP_LOGI("board", "Starting control/touch I2C on SDA15/SCL16");
     i2c_master_bus_handle_t bus;
     i2c_master_bus_config_t bc = {.i2c_port = I2C_NUM_0,
                                   .sda_io_num = 15,
@@ -44,18 +63,20 @@ esp_err_t cyd_board_init(void) {
     i2c_device_config_t dc = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7, .device_address = 0x30, .scl_speed_hz = 100000};
     ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(bus, &dc, &stc), "board", "STC");
-    uint8_t v = 250;
-    ESP_RETURN_ON_ERROR(i2c_master_transmit(stc, &v, 1, 100), "board", "touch enable");
-    vTaskDelay(pdMS_TO_TICKS(50));
-    v = 0;
-    ESP_RETURN_ON_ERROR(i2c_master_transmit(stc, &v, 1, 100), "board", "backlight");
+    ESP_LOGI("board", "Sending STC touch-enable and backlight commands");
+    cyd_control_boot_io_t control = {.context = bus, .write = control_write,
+        .reset_bus = control_bus_reset, .wait_ms = control_wait, .retry_note = control_retry};
+    ESP_RETURN_ON_ERROR(cyd_control_boot(&control), "board", "STC startup after bus recovery");
+    ESP_LOGI("board", "STC touch/backlight startup complete");
     esp_lcd_panel_io_handle_t io;
     esp_lcd_panel_io_i2c_config_t ic = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
     ic.scl_speed_hz = 100000;
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(bus, &ic, &io), "board", "touch IO");
+    ESP_LOGI("board", "Initializing GT911 touch");
     esp_lcd_touch_config_t tc = {
         .x_max = 800, .y_max = 480, .rst_gpio_num = -1, .int_gpio_num = -1};
     ESP_RETURN_ON_ERROR(esp_lcd_touch_new_i2c_gt911(io, &tc, &touch), "board", "GT911");
+    ESP_LOGI("board", "Initializing 800x480 RGB panel at 16 MHz");
     esp_lcd_rgb_panel_config_t pc = {
         .clk_src = LCD_CLK_SRC_DEFAULT,
         .data_width = 16,
@@ -83,6 +104,7 @@ esp_err_t cyd_board_init(void) {
     ESP_RETURN_ON_ERROR(esp_lcd_new_rgb_panel(&pc, &panel), "board", "RGB");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(panel), "board", "reset");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(panel), "board", "init");
+    ESP_LOGI("board", "RGB panel initialization complete");
     initialized = true;
     return ESP_OK;
 #endif

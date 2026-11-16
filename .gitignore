@@ -21,3 +21,7 @@ core
 *.token
 
 !releases/**/*.cydapp
+
+# Live device captures, flash/NVS backups and local access configuration.
+work/private/
+private/

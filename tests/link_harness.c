@@ -30,6 +30,13 @@ unsigned link_pending(unsigned node) {
     return n;
 }
 void link_serial(unsigned node, uint32_t n) { nodes[node].next_id = n; }
+int link_health_send(unsigned node, const cyd_link_status_t *status) {
+    return cyd_link_send_status(&nodes[node], status);
+}
+int link_health_get(unsigned node, cyd_link_status_t *status, uint32_t *age) {
+    return cyd_link_get_status(&nodes[node], status, age);
+}
+void link_health_serial(unsigned node, uint32_t n) { nodes[node].status_sequence = n; }
 #ifdef LINK_FUZZ_MAIN
 int main(void) {
     assert(link_reset(0, CYD_LINK_MAIN, 11));

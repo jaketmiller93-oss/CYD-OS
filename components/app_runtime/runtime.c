@@ -1,10 +1,18 @@
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 #include "cyd.h"
 #include "cyd_credentials.h"
 #include "cyd_network.h"
+#ifdef CONFIG_CYD_PAIRED_SYSTEM
+#include "cyd_builtin.h"
+#include "cyd_pair.h"
+#endif
 #include "cyd_services.h"
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
 #include "freertos/queue.h"
 #include "lauxlib.h"
 #include "lua.h"
@@ -14,6 +22,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+_Static_assert(sizeof(lua_Integer) == 8, "CYD Lua bindings require 64-bit integers");
+_Static_assert(sizeof(lua_Number) == 8, "CYD Lua bindings require doubles");
+extern unsigned cyd_lua_integer_bytes(void);
+extern unsigned cyd_lua_number_bytes(void);
 #define LUA_LIMIT (1024 * 1024)
 #define UI_LIMIT 96
 static SemaphoreHandle_t done, guard, log_guard;
@@ -21,7 +33,14 @@ static SemaphoreHandle_t done, guard, log_guard;
 static atomic_bool cancel;
 static atomic_size_t lua_bytes, lua_peak;
 static char state[16] = "stopped", revision[17] = "", package_id[65] = "", last_error[256] = "";
+#if defined(CONFIG_CYD_PAIRED_SYSTEM) && defined(CONFIG_IDF_TARGET_ESP32C5) && \
+    !defined(CONFIG_IDF_TARGET_ESP32S3)
+/* The manager's log history is neither DMA nor ISR data. Its 20 KiB must not
+ * occupy the internal RAM required by HTTPD, UART and service task stacks. */
+static char (*logs)[320];
+#else
 static char logs[64][320];
+#endif
 static unsigned log_count, log_next;
 typedef struct app app_t;
 typedef struct {
@@ -40,7 +59,7 @@ struct app {
     atomic_bool closing;
     size_t memory;
     unsigned objects, images;
-    int64_t deadline;
+    int64_t deadline, wall_deadline;
     lv_obj_t *root, *input_overlay, *input_edit;
     widget_t widgets[UI_LIMIT + 1];
     widget_t *input_target;
@@ -117,7 +136,7 @@ static void *allocator(void *ud, void *ptr, size_t old, size_t n) {
     }
     if (n > old && n - old > LUA_LIMIT - a->memory)
         return NULL;
-    void *p = realloc(ptr, n);
+    void *p = heap_caps_realloc(ptr, n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (p) {
         a->memory = a->memory - old + n;
         atomic_store(&lua_bytes, a->memory);
@@ -126,13 +145,47 @@ static void *allocator(void *ud, void *ptr, size_t old, size_t n) {
     }
     return p;
 }
-static void hook(lua_State *L, lua_Debug *ar) {
-    (void)ar;
+static void execution_begin(app_t *a) {
+    int64_t now = esp_timer_get_time();
+    a->deadline = now + 500000;
+    a->wall_deadline = now + 5000000;
+}
+static void execution_check(lua_State *L) {
     if (atomic_load(&cancel))
         luaL_error(L, "Application stopped");
-    if (esp_timer_get_time() > context(L)->deadline)
-        luaL_error(L, "Execution budget exceeded (500 ms per callback)");
+    app_t *a = context(L);
+    int64_t now = esp_timer_get_time();
+    if (a->wall_deadline && now > a->wall_deadline)
+        luaL_error(L, "Callback wall time limit exceeded (5 s)");
+    if (now > a->deadline)
+        luaL_error(L, "Execution budget exceeded (500 ms of script time per callback)");
+}
+static void hook(lua_State *L, lua_Debug *ar) {
+    (void)ar;
+    execution_check(L);
+    int64_t before = esp_timer_get_time();
     vTaskDelay(1);
+    context(L)->deadline += esp_timer_get_time() - before;
+    execution_check(L);
+}
+typedef struct { lua_CFunction call; } ui_function_t;
+static int call_ui_function(lua_State *L) {
+    ui_function_t *fn = lua_touserdata(L, lua_upvalueindex(1));
+    app_t *a = context(L);
+    execution_check(L);
+    int64_t before = esp_timer_get_time();
+    int result = fn->call(L);
+    /* UI work and waiting for the renderer are bounded native operations, not
+     * script execution. Still enforce the independent wall limit and Stop. */
+    a->deadline += esp_timer_get_time() - before;
+    execution_check(L);
+    return result;
+}
+static void ui_table_fn(lua_State *L, const char *name, lua_CFunction call) {
+    ui_function_t *fn = lua_newuserdatauv(L, sizeof(*fn), 0);
+    fn->call = call;
+    lua_pushcclosure(L, call_ui_function, 1);
+    lua_setfield(L, -2, name);
 }
 static const char *bounded_string(lua_State *L, int index, size_t max) {
     size_t n;
@@ -237,6 +290,7 @@ static void table_fn(lua_State *L, const char *name, lua_CFunction fn) {
     lua_pushcfunction(L, fn);
     lua_setfield(L, -2, name);
 }
+#include "essentials_bindings.inc"
 #include "services_bindings.inc"
 /* Lua disables hooks in __gc. Copy and protect user metatables so finalizers
    cannot be installed indirectly after validation. Native userdata has private
@@ -319,9 +373,10 @@ static int bind_api(lua_State *L) {
     ui_metatable(L);
     lua_newtable(L);
     lua_newtable(L);
-    table_fn(L, "create_screen", create_screen);
-    table_fn(L, "size", viewport);
-    table_fn(L, "show", show);
+    ui_table_fn(L, "create_screen", create_screen);
+    ui_table_fn(L, "size", viewport);
+    ui_table_fn(L, "show", show);
+    ui_table_fn(L, "text_lines", text_lines);
     lua_setfield(L, -2, "ui");
     lua_newtable(L);
     table_fn(L, "write", storage_write);
@@ -332,7 +387,15 @@ static int bind_api(lua_State *L) {
     lua_setfield(L, -2, "log");
     lua_newtable(L);
     table_fn(L, "uptime_ms", uptime);
+    table_fn(L, "now", wall_clock);
     lua_setfield(L, -2, "time");
+    lua_newtable(L);
+    table_fn(L, "list", documents_list);
+    table_fn(L, "read", documents_read);
+    table_fn(L, "write", documents_write);
+    table_fn(L, "rename", documents_rename);
+    table_fn(L, "delete", documents_delete);
+    lua_setfield(L, -2, "documents");
     lua_setglobal(L, "cyd");
     bind_services_api(L);
     bind_ui_api(L);
@@ -345,13 +408,13 @@ static void run_task(void *arg) {
     uint8_t *source = NULL;
     size_t size;
     lua_State *L = lua_newstate(allocator, a);
-    if (!services_start(a)) {
-        snprintf(error, sizeof(error), "App service allocation failed");
+    if (!L) {
+        snprintf(error, sizeof(error), "Lua memory allocation failed (PSRAM)");
         failed = true;
         goto cleanup;
     }
-    if (!L) {
-        snprintf(error, sizeof(error), "Lua memory allocation failed");
+    if (!services_start(a)) {
+        snprintf(error, sizeof(error), "App service allocation failed");
         failed = true;
         goto cleanup;
     }
@@ -375,14 +438,19 @@ static void run_task(void *arg) {
         goto cleanup;
     }
     lua_sethook(L, hook, LUA_MASKCOUNT, 1000);
-    esp_err_t e = cyd_read_file(a->path, &source, &size, CYD_MAX_SCRIPT);
+    const char *embedded = NULL;
+#ifdef CONFIG_CYD_PAIRED_SYSTEM
+    embedded = cyd_builtin_source(a->path, &size);
+#endif
+    esp_err_t e = ESP_OK;
+    if (!embedded) e = cyd_read_file(a->path, &source, &size, CYD_MAX_SCRIPT);
     if (e) {
         snprintf(error, sizeof(error), "Entry point unavailable");
         failed = true;
         goto cleanup;
     }
-    a->deadline = esp_timer_get_time() + 500000;
-    int rc = luaL_loadbufferx(L, (char *)source, size, a->manifest.entry, "t");
+    execution_begin(a);
+    int rc = luaL_loadbufferx(L, embedded ? embedded : (char *)source, size, a->manifest.entry, "t");
     free(source);
     source = NULL;
     if (!rc)
@@ -396,12 +464,10 @@ static void run_task(void *arg) {
     set_state("running", NULL);
     cyd_log(a->manifest.id, "Running");
     while (!atomic_load(&cancel)) {
-        xSemaphoreTake(a->service_guard, portMAX_DELAY);
-        bool have = cyd_services_pop(a->services, &a->delivery);
-        xSemaphoreGive(a->service_guard);
+        bool have = services_next(a);
         if (have) {
             lua_pushcfunction(L, dispatch_event);
-            a->deadline = esp_timer_get_time() + 500000;
+            execution_begin(a);
             if (lua_pcall(L, 0, 0, 0)) {
                 snprintf(error, sizeof(error), "%s",
                          lua_tostring(L, -1) ? lua_tostring(L, -1) : "Callback error");
@@ -441,6 +507,18 @@ cleanup:
     vTaskDelete(NULL);
 }
 esp_err_t cyd_runtime_init(void) {
+    if (cyd_lua_integer_bytes() != sizeof(lua_Integer) ||
+        cyd_lua_number_bytes() != sizeof(lua_Number)) {
+        ESP_LOGE("runtime", "Lua library/binding number ABI mismatch");
+        return ESP_ERR_INVALID_STATE;
+    }
+#if defined(CONFIG_CYD_PAIRED_SYSTEM) && defined(CONFIG_IDF_TARGET_ESP32C5) && \
+    !defined(CONFIG_IDF_TARGET_ESP32S3)
+    if (!logs)
+        logs = heap_caps_calloc(64, sizeof(*logs), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!logs)
+        return ESP_ERR_NO_MEM;
+#endif
     guard = xSemaphoreCreateMutex();
     log_guard = xSemaphoreCreateMutex();
     done = xSemaphoreCreateBinary();
@@ -449,7 +527,22 @@ esp_err_t cyd_runtime_init(void) {
     xSemaphoreGive(done);
     return ESP_OK;
 }
+static esp_err_t launch_nomem(const char *stage) {
+    char message[224];
+    snprintf(message, sizeof(message), "%s; internal free=%u largest=%u; PSRAM free=%u largest=%u",
+             stage, (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    atomic_store(&cancel, true);
+    set_state("crashed", message);
+    cyd_log("runtime", message);
+    return ESP_ERR_NO_MEM;
+}
 esp_err_t cyd_runtime_start(const char *p, const char *r, const cyd_manifest_t *m) {
+#ifdef CONFIG_CYD_PAIRED_SYSTEM
+    if(cyd_pair_installing())return ESP_ERR_INVALID_STATE;
+#endif
     if (cyd_maintenance_active())
         return ESP_ERR_INVALID_STATE;
     esp_err_t e = cyd_runtime_stop();
@@ -461,19 +554,6 @@ esp_err_t cyd_runtime_start(const char *p, const char *r, const cyd_manifest_t *
         xSemaphoreGive(done);
         return ESP_ERR_INVALID_STATE;
     }
-    app_t *a = calloc(1, sizeof(*a));
-    if (!a) {
-        xSemaphoreGive(done);
-        return ESP_ERR_NO_MEM;
-    }
-    for (unsigned i = 0; i < CYD_TIMERS_MAX; i++)
-        a->timer_refs[i] = LUA_NOREF;
-    a->http_ref = LUA_NOREF;
-    for (unsigned i = 0; i < 2; i++)
-        a->mqtt_refs[i][0] = a->mqtt_refs[i][1] = LUA_NOREF;
-    snprintf(a->path, sizeof(a->path), "%s", p);
-    snprintf(a->rev, sizeof(a->rev), "%s", r);
-    a->manifest = *m;
     xSemaphoreTake(guard, portMAX_DELAY);
     snprintf(package_id, sizeof(package_id), "%s", m->id);
     snprintf(revision, sizeof(revision), "%s", r);
@@ -483,11 +563,25 @@ esp_err_t cyd_runtime_start(const char *p, const char *r, const cyd_manifest_t *
     atomic_store(&lua_bytes, 0);
     atomic_store(&lua_peak, 0);
     atomic_store(&cancel, false);
+    app_t *a = heap_caps_calloc(1, sizeof(*a), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!a) {
+        esp_err_t error = launch_nomem("App context allocation failed (PSRAM)");
+        xSemaphoreGive(done);
+        return error;
+    }
+    for (unsigned i = 0; i < CYD_TIMERS_MAX; i++)
+        a->timer_refs[i] = LUA_NOREF;
+    a->http_ref = LUA_NOREF;
+    for (unsigned i = 0; i < 2; i++)
+        a->mqtt_refs[i][0] = a->mqtt_refs[i][1] = LUA_NOREF;
+    snprintf(a->path, sizeof(a->path), "%s", p);
+    snprintf(a->rev, sizeof(a->rev), "%s", r);
+    a->manifest = *m;
     if (xTaskCreate(run_task, "lua_app", 12288, a, 3, NULL) != pdPASS) {
         free(a);
-        set_state("crashed", "Task allocation failed");
+        esp_err_t error = launch_nomem("Lua task allocation failed (12288-byte internal stack)");
         xSemaphoreGive(done);
-        return ESP_ERR_NO_MEM;
+        return error;
     }
     return ESP_OK;
 }
