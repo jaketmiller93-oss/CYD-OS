@@ -1,0 +1,10 @@
+rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+I (565) app_init: App version:      0.5.1
+I (574) app_init: ELF file SHA256:  d17f73b64...
+I (949) boot: Mounting storage
+I (997) cyd: [sd] CRC-enable command rejected (0x106); retrying once after 10 ms
+I (1007) cyd: [sd] CRC-enable retry accepted; integrity checks remain enabled
+I (1954) boot: Local OS startup complete; peer is optional
+I (12339) cyd: [os] Startup checks passed; firmware confirmed
+
+120-second capture: one boot, firmware confirmed, no SD mount errors or panic/reset.

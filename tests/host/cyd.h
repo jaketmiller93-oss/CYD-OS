@@ -8,7 +8,12 @@ typedef int esp_err_t;
 #define ESP_ERR_NOT_SUPPORTED 3
 typedef struct {
     char id[65], name[65], version[33], entry[CYD_MAX_PATH];
-    bool storage;
+    bool storage, network, mqtt, credentials, documents;
 } cyd_manifest_t;
 bool cyd_safe_path(const char *);
 bool cyd_safe_id(const char *);
+int cyd_zip_parse(const uint8_t *,size_t,cyd_zip_t *);
+esp_err_t cyd_manifest_parse(const void *,size_t,cyd_manifest_t *);
+esp_err_t cyd_package_validate(const uint8_t *,size_t,cyd_zip_t *,cyd_manifest_t *,char *,size_t);
+cJSON *cyd_json_parse(const void *,size_t,size_t);
+cJSON *cyd_package_inspect(const uint8_t *,size_t,char *,size_t);

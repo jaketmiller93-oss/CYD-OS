@@ -1,8 +1,8 @@
 #include "cyd.h"
 #include "sdkconfig.h"
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 static const char *str(cJSON *o, const char *k) {
     cJSON *v = cJSON_GetObjectItemCaseSensitive(o, k);
     return cJSON_IsString(v) ? v->valuestring : NULL;
@@ -10,7 +10,8 @@ static const char *str(cJSON *o, const char *k) {
 esp_err_t cyd_manifest_parse(const void *data, size_t n, cyd_manifest_t *m) {
     if (!data || !m || !n || n > 4096 || memchr(data, 0, n))
         return ESP_ERR_INVALID_ARG;
-    /* cJSON exposes C strings; reject decoded NULs rather than accepting aliases. */
+    /* cJSON exposes C strings; reject decoded NULs rather than accepting aliases.
+     */
     for (size_t i = 0; i + 6 <= n; i++)
         if (!memcmp((const char *)data + i, "\\u0000", 6))
             return ESP_ERR_INVALID_ARG;
@@ -90,6 +91,14 @@ esp_err_t cyd_manifest_parse(const void *data, size_t n, cyd_manifest_t *m) {
             goto done;
         if (!strcmp(v->valuestring, "storage"))
             m->storage = true;
+        else if (!strcmp(v->valuestring, "network"))
+            m->network = true;
+        else if (!strcmp(v->valuestring, "mqtt"))
+            m->mqtt = true;
+        else if (!strcmp(v->valuestring, "credentials"))
+            m->credentials = true;
+        else if (!strcmp(v->valuestring, "documents"))
+            m->documents = true;
         else {
             err = ESP_ERR_NOT_SUPPORTED;
             goto done;

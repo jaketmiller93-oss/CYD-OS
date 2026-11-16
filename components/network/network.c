@@ -1,3 +1,5 @@
+#include "sdkconfig.h"
+#if !defined(CONFIG_CYD_PAIRED_SYSTEM) || !defined(CONFIG_IDF_TARGET_ESP32S3)
 #include "cyd.h"
 #include "cyd_network.h"
 #include "cyd_ota.h"
@@ -613,3 +615,5 @@ esp_err_t cyd_network_init(void) {
         message(CYD_NET_FAILED, "Wi-Fi service unavailable; restart or inspect startup logs");
     return e;
 }
+
+#endif

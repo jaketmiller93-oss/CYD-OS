@@ -1,0 +1,25 @@
+{
+  "board": "nm_cyd_c5",
+  "version": "0.5.0",
+  "bytes": 2150032,
+  "file_sha256": "fa08294b5bc518650376f59b08bfbb0867c4599f27a943c3c2331adbbea341b9",
+  "esp_image_sha256": "8c27db908bec16f0b8a59ffccf7fe0b30528ce46c3fcc78ee85fe2dc4a494399",
+  "partition_layout_sha256": "0213e45d3f84048bd6ee6d0861b8f2800d9199642cc6053246a83c03a983ab33",
+  "build_revision": "c5-paired-startup-fix-3",
+  "elf_sha256": "5aad7fa3f0366e93ab55b0beb69fc3cec0a7c0e9b08593c915bc970363ec4aab",
+  "initial_private_fields_blank": true,
+  "link_config": {
+    "CONFIG_CYD_LINK_ENABLE": "y",
+    "CONFIG_CYD_LINK_WIRING_CONFIRMED": "y",
+    "CONFIG_CYD_LINK_TX_GPIO": "5",
+    "CONFIG_CYD_LINK_RX_GPIO": "4",
+    "CONFIG_CYD_LINK_BAUD": "115200"
+  },
+  "memory_config": {
+    "CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP": "y",
+    "CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL": "0"
+  },
+  "installed": false,
+  "hardware_validated": false,
+  "s3_update_required": false
+}

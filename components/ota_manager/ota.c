@@ -22,6 +22,8 @@ static esp_ota_handle_t writer;
 static bool writer_open;
 static atomic_uint health_bits, ui_heartbeat, network_heartbeat;
 static uint32_t boot_started, stable_started;
+static uint32_t health_reported;
+static esp_err_t confirmation_error;
 static bool health_finished;
 static uint32_t now_ms(void) {
     return (uint32_t)(esp_timer_get_time() / 1000);
@@ -51,6 +53,14 @@ void cyd_ota_snapshot(cyd_ota_status_t *out) {
     *out = state;
     xSemaphoreGive(mutex);
 }
+bool cyd_ota_boot_confirmed(void) {
+    if (!mutex)
+        return false;
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    bool confirmed = state.boot_confirmed;
+    xSemaphoreGive(mutex);
+    return confirmed;
+}
 static bool partition_layout_valid(void) {
     const esp_partition_t *a =
         esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
@@ -71,15 +81,22 @@ static bool partition_layout_valid(void) {
 static void health_step(void) {
     if (health_finished)
         return;
+    unsigned missing = CYD_HEALTH_ALL & ~atomic_load(&health_bits);
+    /* A higher-priority UI task (or the other S3 core) can publish a heartbeat
+     * between these reads. Sample timestamps BEFORE now, so a newer heartbeat
+     * cannot turn unsigned subtraction into an apparently days-old service. */
+    uint32_t ui_seen = atomic_load(&ui_heartbeat);
+    uint32_t network_seen = atomic_load(&network_heartbeat);
     uint32_t now = now_ms();
-    bool ready = (atomic_load(&health_bits) & CYD_HEALTH_ALL) == CYD_HEALTH_ALL &&
-                 (uint32_t)(now - atomic_load(&ui_heartbeat)) < 2500 &&
-                 (uint32_t)(now - atomic_load(&network_heartbeat)) < 2500;
+    uint32_t ui_age = now - ui_seen;
+    uint32_t network_age = now - network_seen;
+    bool ready = !missing && ui_age < 2500 && network_age < 2500;
     if (ready) {
         if (!stable_started)
             stable_started = now;
         if ((uint32_t)(now - stable_started) >= 10000) {
             esp_err_t e = esp_ota_mark_app_valid_cancel_rollback();
+            confirmation_error = e;
             if (e == ESP_OK) {
                 xSemaphoreTake(mutex, portMAX_DELAY);
                 state.boot_confirmed = true;
@@ -94,6 +111,20 @@ static void health_step(void) {
         }
     } else
         stable_started = 0;
+    /* Report the actual gate before rollback, rather than guessing from a live
+     * screen. The dashboard already polls state.message; Logs mirrors it. This
+     * adds no readiness bit, timeout extension, or exception to confirmation. */
+    if ((uint32_t)(now - health_reported) >= 5000) {
+        health_reported = now;
+        char detail[160];
+        snprintf(detail, sizeof(detail),
+                 "Startup: missing=0x%02x; UI=%lums; network=%lums; stable=%lus/10s; confirm_err=0x%x",
+                 missing, (unsigned long)ui_age, (unsigned long)network_age,
+                 (unsigned long)(stable_started ? (uint32_t)(now - stable_started) / 1000 : 0),
+                 (unsigned)confirmation_error);
+        set_stage(CYD_OS_BOOTING, detail);
+        cyd_log("os", detail);
+    }
     if ((uint32_t)(now - boot_started) >= 45000) {
         bool pending = state.pending_verify;
         set_stage(CYD_OS_FAILED, pending ? "Startup checks failed; reverting to the previous OS"
@@ -138,6 +169,8 @@ esp_err_t cyd_ota_init(void) {
         return ESP_ERR_INVALID_STATE;
     }
     boot_started = now_ms();
+    health_reported = boot_started;
+    confirmation_error = ESP_OK;
     return xTaskCreate(health_task, "os_health", 4096, NULL, 4, NULL) == pdPASS ? ESP_OK
                                                                                 : ESP_ERR_NO_MEM;
 }

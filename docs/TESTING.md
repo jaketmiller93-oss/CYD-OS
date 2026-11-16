@@ -153,3 +153,23 @@ validation and exact revision confirmation.
 The remembered-access browser regression also verifies persistent auto-login in a
 fresh browser session, tab-only opt-out across reloads, legacy session migration,
 forgetting access, rejected/replaced credentials, service failures and blocked storage.
+
+## 0.4.0 platform implementation tests
+
+The standard suite now exercises the production portable service engine (deadlines,
+framing, MQTT assembly/reconnect/epochs/outbox limits, timers and cleanup), actual
+credential records against an NVS double, and shared loader/host preflight agreement.
+The ESP transport adapter is compiled against DNS/TLS doubles to test late resolver
+callbacks, verification configuration and nonblocking EOF/EAGAIN handling.
+
+Loopback TCP/OpenSSL peers test actual HTTP POST/responses, private HTTPS trust,
+wrong hostname/no fallback, slow-peer deadlines and MQTT over TCP/TLS. This is
+protocol integration through a host transport, not ESP-TLS/lwIP/RF testing.
+The real Lua/LVGL harness runs callback dispatch, permissions, UI/image/input
+lifetimes, resource access, JSON, quotas and sandbox failures with ASan/UBSan.
+It also loads/renders the generic demo at both screen sizes. No source-string
+assertions stand in for runtime execution.
+
+Hardware acceptance remains: real C5 station/AP semantics, public/private TLS,
+MQTT compatibility/reconnect under Wi-Fi loss, repeated app stop/replacement,
+keyboard interaction, resource pressure, persistence and existing OTA rollback.

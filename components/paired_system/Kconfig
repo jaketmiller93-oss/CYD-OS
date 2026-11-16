@@ -1,0 +1,9 @@
+menu "CYD paired tablet"
+config CYD_PAIRED_SYSTEM
+    bool "Build the unified S3/C5 tablet roles"
+    default n
+    depends on CYD_LINK_ENABLE && CYD_LINK_WIRING_CONFIRMED
+    help
+        S3 application host, C5 management/radio/storage gateway. Both boards
+        require matching 0.5 service support. Standalone recovery remains separate.
+endmenu

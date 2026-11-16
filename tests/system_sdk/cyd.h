@@ -35,6 +35,7 @@ esp_err_t cyd_ui_init(void),cyd_ui_apply_rotation(unsigned),cyd_board_set_bright
 void cyd_ui_lock(void),cyd_ui_unlock(void),cyd_ui_show_app(bool),cyd_runtime_request_stop(void);
 lv_obj_t *cyd_ui_app_root(void);
 unsigned cyd_board_width(void),cyd_board_height(void);
+const char *cyd_board_model(void);
 void cyd_board_flush(lv_display_t *,const lv_area_t *,uint8_t *),cyd_board_touch(lv_indev_t *,lv_indev_data_t *),cyd_network_address(char *,size_t);
 cJSON *cyd_logs(void);uint64_t cyd_storage_free(void);
 #endif

@@ -28,6 +28,59 @@ int host_device_case(int which) {
     mode = CYD_DISPLAY_NORMAL;
     owns_maintenance = false;
     CHECK(cyd_device_init(320, 240, light, rotate) == 0);
+    if (which == 9) {
+        CHECK(cyd_device_preferences(30, 10, true) == 0); pump();
+        CHECK(cyd_device_init(320, 240, light, rotate) == 0);
+        cyd_device_status_t s; cyd_device_snapshot(&s);
+        CHECK(s.dim_seconds == 30 && s.dim_percent == 10 && s.clock_12h);
+        CHECK(config.brightness == 100 && saved.rotation == 0);
+        return 0;
+    }
+    if (which == 10) {
+        cyd_device_preferences(30, 10, false); pump();
+        host_tick(29999); pump(); CHECK(effective_brightness == 100);
+        host_tick(1); pump(); CHECK(applied_brightness == 10 && effective_brightness == 10);
+        int x, y;
+        CHECK(cyd_device_touch(700, 1100, true, &x, &y)); pump();
+        CHECK(applied_brightness == 100);
+        CHECK(cyd_device_touch(700, 1100, true, &x, &y));
+        CHECK(!cyd_device_touch(0, 0, false, &x, &y));
+        CHECK(!cyd_device_touch(800, 1200, true, &x, &y));
+        cyd_device_status_t s; cyd_device_snapshot(&s);
+        CHECK(s.touch_presses == 2 && s.touch_pressed && s.touch_raw_x == 800);
+        CHECK(s.touch_x == x && s.touch_y == y);
+        cyd_device_touch(0, 0, false, &x, &y);
+        cyd_device_status_t released; cyd_device_snapshot(&released);
+        CHECK(!released.touch_pressed && released.touch_x == s.touch_x);
+        CHECK(saved.brightness == 100);
+        return 0;
+    }
+    if (which == 11) {
+        cyd_device_preferences(30, 50, false); pump();
+        cyd_device_brightness(25, true); pump();
+        host_tick(31000); pump(); CHECK(effective_brightness == 25);
+        cyd_device_brightness(90, true); pump();
+        host_tick(31000); pump(); CHECK(effective_brightness == 50);
+        cyd_device_preferences(0, 10, false); pump(); CHECK(effective_brightness == 90);
+        host_tick(500000); pump(); CHECK(effective_brightness == 90);
+        return 0;
+    }
+    if (which == 12) {
+        CHECK(cyd_device_preferences(15, 10, false) != 0);
+        CHECK(cyd_device_preferences(30, 0, false) != 0);
+        host_fail_save(true);
+        cyd_device_preferences(30, 25, true); pump();
+        CHECK(preferences.dim_seconds == 0 && !preferences.clock_12h);
+        return 0;
+    }
+    if (which == 13) {
+        cyd_device_preferences(30, 10, false); pump();
+        host_tick(31000); pump(); CHECK(effective_brightness == 10);
+        CHECK(cyd_maintenance_begin()); pump(); CHECK(effective_brightness == 100);
+        CHECK(cyd_device_preferences(60, 25, false) != 0);
+        cyd_maintenance_end(); pump(); CHECK(effective_brightness == 10);
+        return 0;
+    }
     if (which == 8) {
         size_t n = sizeof(device_config_t);
         device_config_t stored;

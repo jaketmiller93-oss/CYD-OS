@@ -1,0 +1,8 @@
+{
+  "board": "nm_cyd_c5",
+  "version": "0.4.0",
+  "bytes": 1706192,
+  "file_sha256": "8bb1bf0faf81d6d03475eb2f7be0a2d7652e8628a414b5a0b592ffda9b6372c7",
+  "esp_image_sha256": "7136f54666047d8e99f180120e51d63b4ffc8fafdf191056bd209c7c1b5852ac",
+  "partition_layout_sha256": "0213e45d3f84048bd6ee6d0861b8f2800d9199642cc6053246a83c03a983ab33"
+}

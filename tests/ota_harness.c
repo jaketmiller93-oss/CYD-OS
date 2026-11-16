@@ -1,5 +1,19 @@
 #include "system_sdk/cyd.h"
+static int64_t health_clock(void);
+#define esp_timer_get_time health_clock
 #include "../components/ota_manager/ota.c"
+#undef esp_timer_get_time
+static bool heartbeat_during_clock;
+static int64_t health_clock(void) {
+    int64_t sampled = esp_timer_get_time();
+    if (heartbeat_during_clock) {
+        /* Simulate UI preemption after the clock sample, before returning to
+         * health_step. A time-first reader would see a future heartbeat. */
+        host_tick(1);
+        atomic_store(&ui_heartbeat, (uint32_t)(esp_timer_get_time() / 1000));
+    }
+    return sampled;
+}
 static cyd_os_image_desc_t desc = {
     .magic = "CYD-OS-UPDATE",
     .format = 1,
@@ -17,7 +31,8 @@ static esp_partition_t a = {0x20000, 0x700000, "ota_0"}, b = {0x720000, 0x700000
                        otadata = {0xf000, 0x2000, "otadata"}, nvs = {0x9000, 0x6000, "nvs"};
 static int begin_count, end_count, abort_count, select_count, confirm_count, rollback_count,
     restart_count;
-static bool pending_boot, can_rollback, fail_write, fail_end, fail_hash, fail_stop, fail_select;
+static bool pending_boot, can_rollback, fail_write, fail_end, fail_hash, fail_stop, fail_select,
+    fail_confirmation;
 static uint8_t prefix[512];
 const esp_partition_t *esp_ota_get_running_partition(void) {
     return &a;
@@ -47,7 +62,7 @@ bool esp_ota_check_rollback_is_possible(void) {
 }
 esp_err_t esp_ota_mark_app_valid_cancel_rollback(void) {
     confirm_count++;
-    return 0;
+    return fail_confirmation ? ESP_FAIL : 0;
 }
 esp_err_t esp_ota_mark_app_invalid_rollback_and_reboot(void) {
     rollback_count++;
@@ -99,10 +114,13 @@ esp_err_t cyd_runtime_stop(void) {
 }
 static void reset_ota(bool pending) {
     host_reset();
+    heartbeat_during_clock = false;
     memset(&state, 0, sizeof(state));
     mutex = NULL;
     writer_open = health_finished = false;
     stable_started = 0;
+    health_reported = 0;
+    confirmation_error = 0;
     atomic_store(&health_bits, 0);
     atomic_store(&ui_heartbeat, 0);
     atomic_store(&network_heartbeat, 0);
@@ -110,7 +128,7 @@ static void reset_ota(bool pending) {
         restart_count = 0;
     pending_boot = pending;
     can_rollback = true;
-    fail_write = fail_end = fail_hash = fail_stop = fail_select = false;
+    fail_write = fail_end = fail_hash = fail_stop = fail_select = fail_confirmation = false;
     memset(prefix, 0, sizeof(prefix));
     prefix[0] = 0xe9;
     prefix[1] = 3;
@@ -140,8 +158,56 @@ static void healthy(unsigned ms) {
             return __LINE__;                                                                       \
     } while (0)
 int host_ota_case(int which) {
-    reset_ota(which == 6 || which == 7);
+    reset_ota(which == 6 || which == 7 || which >= 12);
     char error[160];
+    if (which == 15) {
+        cyd_ota_health_report(CYD_HEALTH_ALL);
+        for (unsigned i = 0; i < 43; ++i) {
+            host_tick(250);
+            cyd_ota_health_heartbeat(CYD_HEALTH_UI);
+            cyd_ota_health_heartbeat(CYD_HEALTH_NETWORK);
+            heartbeat_during_clock = true;
+            health_step();
+            heartbeat_during_clock = false;
+        }
+        CHECK(confirm_count == 1 && state.boot_confirmed);
+        CHECK(!state.pending_verify && !rollback_count);
+        return 0;
+    }
+    if (which == 12) {
+        cyd_ota_health_report(CYD_HEALTH_ALL & ~CYD_HEALTH_API);
+        host_tick(5000);
+        cyd_ota_health_heartbeat(CYD_HEALTH_UI);
+        cyd_ota_health_heartbeat(CYD_HEALTH_NETWORK);
+        health_step();
+        CHECK(strstr(state.message, "missing=0x04"));
+        CHECK(strstr(state.message, "UI=0ms; network=0ms"));
+        CHECK(!confirm_count && !state.boot_confirmed && state.pending_verify);
+        host_tick(40000); health_step();
+        CHECK(rollback_count == 1 && !confirm_count);
+        return 0;
+    }
+    if (which == 13) {
+        fail_confirmation = true;
+        healthy(16000);
+        CHECK(confirm_count > 0 && !state.boot_confirmed && state.pending_verify);
+        CHECK(strstr(state.message, "confirm_err=0x"));
+        CHECK(confirmation_error == ESP_FAIL);
+        CHECK(strstr(state.message, "missing=0x00"));
+        healthy(30000);
+        CHECK(rollback_count == 1 && !state.boot_confirmed);
+        return 0;
+    }
+    if (which == 14) {
+        cyd_ota_health_report(CYD_HEALTH_ALL);
+        cyd_ota_health_heartbeat(CYD_HEALTH_UI);
+        host_tick(5000);
+        cyd_ota_health_heartbeat(CYD_HEALTH_NETWORK);
+        health_step();
+        CHECK(strstr(state.message, "UI=5000ms; network=0ms"));
+        CHECK(!stable_started && !confirm_count);
+        return 0;
+    }
     if (which == 0) {
         CHECK(cyd_ota_begin(prefix, 512, 1024, error, sizeof(error)) != 0);
         CHECK(begin_count == 0);

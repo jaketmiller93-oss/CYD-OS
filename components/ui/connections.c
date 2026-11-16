@@ -1,3 +1,4 @@
+#include "pager.h"
 #include "connections.h"
 #include "cyd_network.h"
 #include "cyd_access.h"
@@ -17,6 +18,9 @@ typedef enum {
     PAGE_TOKEN_CONFIRM
 } page_t;
 typedef enum { EDIT_SSID, EDIT_PASSWORD, EDIT_AP_SSID, EDIT_AP_PASSWORD } field_t;
+static void connection_text(lv_obj_t *label,const char *text) {
+    if(strcmp(lv_label_get_text(label),text))lv_label_set_text(label,text);
+}
 static lv_obj_t *view, *body, *note, *link_label, *editor, *edit_title, *os_label;
 static bool show_token, device_root;
 static unsigned width, height;
@@ -235,7 +239,7 @@ static void update_os(void) {
     char b[320];
     snprintf(b, sizeof(b), "CYD OS %s / %s\n%s\nUpload: %u / %u KiB", s.version, s.running_slot,
              s.message, (unsigned)s.received / 1024, (unsigned)s.total / 1024);
-    lv_label_set_text(os_label, b);
+    connection_text(os_label, b);
 }
 static void update_links(const cyd_net_status_t *s) {
     if (!link_label)
@@ -249,7 +253,7 @@ static void update_links(const cyd_net_status_t *s) {
              s->ssid[0] ? " / " : "", s->ssid, s->station_ip[0] ? s->station_ip : "none",
              s->ap_enabled ? "on / " : "off", s->ap_enabled ? s->ap_ssid : "",
              s->ready ? "" : " (starting)", s->ap_enabled && s->ap_ip[0] ? s->ap_ip : "none");
-    lv_label_set_text(link_label, b);
+    connection_text(link_label, b);
 }
 static void render(page_t next) {
     page = next;
@@ -296,7 +300,7 @@ static void render(page_t next) {
     lv_obj_set_pos(b, 4, 2);
     lv_obj_set_size(b, 62, 30);
     lv_obj_t *l = lv_label_create(b);
-    lv_label_set_text(l, "Back");
+    lv_label_set_text(l, "Up");
     lv_obj_center(l);
     lv_obj_add_event_cb(b, back, LV_EVENT_CLICKED, NULL);
     const char *title = page == PAGE_MAIN     ? "Connections"
@@ -428,6 +432,7 @@ static void render(page_t next) {
                    "192.168.4.1. AP changes can disconnect clients. AP mode provides a local "
                    "network, not internet routing.");
     }
+    cyd_pager_attach(body);
 }
 static void poll(lv_timer_t *timer) {
     (void)timer;
@@ -443,9 +448,10 @@ static void poll(lv_timer_t *timer) {
         }
     }
     if (note && lv_tick_elaps(notice_started) >= notice_duration)
-        lv_label_set_text(note, s.scanning ? "Scanning nearby networks..." : s.message);
+        connection_text(note, s.scanning ? "Scanning nearby networks..." : s.message);
     update_links(&s);
     update_os();
+    cyd_pager_refresh(body);
 }
 void cyd_connections_init(lv_obj_t *parent, unsigned w, unsigned h) {
     width = w;
@@ -492,4 +498,11 @@ void cyd_connections_resize(unsigned w, unsigned h) {
     lv_obj_set_size(view, width, height);
     if (!lv_obj_has_flag(view, LV_OBJ_FLAG_HIDDEN))
         render(page);
+}
+
+bool cyd_connections_nav(int direction,cyd_nav_state_t *state) {
+    if(!view || lv_obj_has_flag(view,LV_OBJ_FLAG_HIDDEN))return false;
+    cyd_pager_refresh(body);
+    if(direction && !cyd_pager_move(body,direction) && direction<0)back(NULL);
+    cyd_pager_state(body,state);state->active=true;state->back=true;return true;
 }

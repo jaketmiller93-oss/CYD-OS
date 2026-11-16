@@ -1,6 +1,10 @@
 # CYD OS project reference
 
-Snapshot: source and prepared firmware **0.3.2**. This document carries the project
+Historical 0.3.x reference. The current 0.4.0 extension is described in
+ARCHITECTURE-0.4.md, LUA-API-0.4.md, SECURITY-0.4.md and UPGRADE-0.4.md.
+Those documents supersede the earlier capability/permission limits below.
+
+Original snapshot: source and prepared firmware **0.3.2**. This document carries the project
 context into new chats. Check the device's displayed version before assuming that
 a prepared update has been installed. No Wi-Fi password, access token or private
 device sdkconfig belongs in this repository.

@@ -1,4 +1,8 @@
-# CYD OS API v1 (MVP)
+# CYDOS Lua API 1
+
+For the additive 0.4.0 platform APIs and their quotas, read [LUA-API-0.4.md](LUA-API-0.4.md)
+and [SECURITY-0.4.md](SECURITY-0.4.md). The core contract below remains unless
+explicitly extended there.
 
 ## Package contract
 
@@ -33,8 +37,10 @@ Required manifest fields:
 `package_id` is a lowercase reverse-domain string up to 64 bytes. Name is up to
 64 UTF-8 bytes, version up to 32. Version is a display string, not a sortable
 semantic-version constraint. The current device must appear in `target`.
-Only `storage` is an available permission (an empty list is allowed). Unknown
+Permissions are `storage`, `network`, `mqtt`, `credentials` and `documents` (an empty list is allowed). Unknown
 permissions fail installation. Duplicate manifest fields fail validation.
+The `documents` permission requires C5 0.4.4c or S3 0.4.3s and grants only the
+shared Documents area; see [OFFLINE-ESSENTIALS.md](OFFLINE-ESSENTIALS.md).
 An optional `icon` is a safe package-relative path; rendering custom icons is a
 future feature. Additional metadata fields are retained but unused.
 
@@ -72,10 +78,12 @@ cancellation/budget errors indefinitely. Only textual Lua source is loaded.
 UI objects are capped at 96 user widgets; buttons also allocate one child label.
 The Lua allocator is capped at 1 MiB. Every 1000 Lua instructions, a hook checks
 cancellation and a 500 ms wall-clock execution budget, and yields one RTOS tick.
-Each entry point/callback gets a fresh budget. Queued clicks are capped at 16;
-excess clicks are dropped. No scripts run on the LVGL task.
+Each entry point/callback gets a fresh budget. Callbacks share eight slots, with two reserved from ordinary traffic for network
+completion/state. Excess clicks/messages may be dropped; input changes and timer
+repetitions coalesce. No scripts run on the LVGL task.
 
-An entry-point return is followed by `running`. Entry or callback errors produce
+Application finalizers are disabled and metatables protected; C-call nesting is
+capped at 32. An entry-point return is followed by `running`. Entry or callback errors produce
 `crashed` and release widgets, handlers, registry references and Lua allocations.
 Home requests stop; normal stop waits up to 2.5 seconds. A timed-out stop prevents
 another app starting. Hooks cannot interrupt arbitrary C or blocked filesystem

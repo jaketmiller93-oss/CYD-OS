@@ -1,6 +1,10 @@
 """Enable OTA rollback in an existing sdkconfig without changing credentials."""
 from pathlib import Path
 FLAGS = {
+    'CONFIG_MBEDTLS_CERTIFICATE_BUNDLE': 'y',
+    'CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL': 'y',
+    'CONFIG_ESP_TLS_INSECURE': 'n',
+    'CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY': 'n',
     'CONFIG_LV_FONT_MONTSERRAT_20': 'y',
     'CONFIG_LV_FONT_MONTSERRAT_28': 'y',
     'CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE': 'y',

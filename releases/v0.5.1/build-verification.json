@@ -1,0 +1,46 @@
+{
+  "nm_cyd_c5": {
+    "board": "nm_cyd_c5",
+    "version": "0.5.1",
+    "bytes": 2150560,
+    "file_sha256": "748fb9cbb69b078439a4446fdebbb46691014608584fed1206c7d955a6ff5659",
+    "esp_image_sha256": "ebb3e74e47396dfba8ac8059b1f5655bfce7d54714b31f55ebbfa14c146d92c4",
+    "partition_layout_sha256": "0213e45d3f84048bd6ee6d0861b8f2800d9199642cc6053246a83c03a983ab33",
+    "elf_sha256": "bb396a0f04aaa55e96ee98228af7422c0c883d08a69bb2a0c5c6c475f0e7436f",
+    "role": "device_manager",
+    "paired_service_schema": 1,
+    "link_profile": "crowpanel-v13-c5-p5",
+    "link_config": {
+      "CONFIG_CYD_LINK_ENABLE": "y",
+      "CONFIG_CYD_LINK_WIRING_CONFIRMED": "y",
+      "CONFIG_CYD_LINK_TX_GPIO": "5",
+      "CONFIG_CYD_LINK_RX_GPIO": "4",
+      "CONFIG_CYD_LINK_BAUD": "115200"
+    },
+    "initial_private_fields_blank": true,
+    "installed": false,
+    "hardware_validated": false
+  },
+  "crowpanel_s3": {
+    "board": "crowpanel_s3",
+    "version": "0.5.1",
+    "bytes": 938640,
+    "file_sha256": "516780362b8ea1972312f968c82457f642fff107b236827a84ec80967b0d53d0",
+    "esp_image_sha256": "6ce6389c981dfa2e8fd6409884734f2bd18875eee9cfc1b3c41eed36e9ced296",
+    "partition_layout_sha256": "0213e45d3f84048bd6ee6d0861b8f2800d9199642cc6053246a83c03a983ab33",
+    "elf_sha256": "d17f73b64aad0b85f4c5c994c33bc00f86ceda0ad0fc814a5230e2ca03344de5",
+    "role": "application_host",
+    "paired_service_schema": 1,
+    "link_profile": "crowpanel-v13-c5-p5",
+    "link_config": {
+      "CONFIG_CYD_LINK_ENABLE": "y",
+      "CONFIG_CYD_LINK_WIRING_CONFIRMED": "y",
+      "CONFIG_CYD_LINK_TX_GPIO": "8",
+      "CONFIG_CYD_LINK_RX_GPIO": "2",
+      "CONFIG_CYD_LINK_BAUD": "115200"
+    },
+    "initial_private_fields_blank": true,
+    "installed": false,
+    "hardware_validated": false
+  }
+}

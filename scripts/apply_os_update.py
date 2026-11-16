@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply CYD OS 0.3.2 source and enable rollback in the existing C5 configuration."""
+"""Apply CYD OS 0.4.0 source and enable rollback in the existing C5 configuration."""
 import argparse
 from datetime import datetime
 import os
@@ -37,7 +37,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('project',type=Path);p.add_argument('--config',type=Path);args=p.parse_args()
     try:backup,count=bootstrap(Path(__file__).resolve().parent,args.project,args.config)
     except (OSError,ValueError,KeyError,TypeError) as e:p.exit(1,f'Update failed: {e}\n')
-    print(f'CYD OS 0.3.2: updated {count} source files. Private backup: {backup}')
+    print(f'CYD OS 0.4.0: updated {count} source files. Private backup: {backup}')
     print('Your device Wi-Fi/token/calibration values and application sources were retained.')
     print('Rollback and UI fonts are enabled. Build and USB-flash once using build-device-c5.')
 if __name__=='__main__':main()

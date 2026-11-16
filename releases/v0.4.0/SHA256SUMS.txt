@@ -1,0 +1,6 @@
+10b89788f9b774dfeac5d66c234ee89a88a204ee836068da2fa5aee21bd0da7a  VALIDATION.md
+8bb1bf0faf81d6d03475eb2f7be0a2d7652e8628a414b5a0b592ffda9b6372c7  cyd-os-0.4.0-nm_cyd_c5-ota.bin
+cd1d12997b8addf41a46445f767b9925afdcc7097505f0348f4dceaaff25bdf7  cyd-os-0.4.0-nm_cyd_c5-ota.bin.json
+a71a0faf5a87098382d20fd9610de5343bcdb6d344f9514f342f1546c3e9e251  cyd-os-source.zip
+c0d173307390f4a3982be74b876b3c8a147cb6ee3411283b61a60249ec198e29  cyd-os-update.zip
+76a24ff1abaa8965abaab4847db773d570716ededc05727b797b76dd1592b8f4  platform-demo.cydapp

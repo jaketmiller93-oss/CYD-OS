@@ -11,6 +11,10 @@ typedef enum {
 } cyd_display_mode_t;
 typedef struct {
     unsigned brightness, rotation;
+    unsigned dim_seconds, dim_percent, effective_brightness;
+    bool clock_12h, dimmed, touch_pressed;
+    int touch_raw_x, touch_raw_y, touch_x, touch_y;
+    uint32_t touch_presses, touch_age_ms;
     int utc_offset_minutes;
     bool clock_valid;
     cyd_display_mode_t mode;
@@ -33,3 +37,9 @@ esp_err_t cyd_device_set_local_clock(const char *text);
 esp_err_t cyd_device_set_offset(int minutes);
 /* Driver calls this once per read. Returns true when calibration consumes touch. */
 bool cyd_device_touch(int raw_x, int raw_y, bool pressed, int *x, int *y);
+
+/* Saved separately from display calibration; applied by the existing settings worker. */
+esp_err_t cyd_device_preferences(unsigned dim_seconds, unsigned dim_percent, bool clock_12h);
+
+/* S3 follows C5 wall time without rewriting its flash every sync. */
+void cyd_device_adopt_clock(int64_t epoch,int offset,bool twelve_hour);
